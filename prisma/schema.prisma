@@ -1,0 +1,263 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Kullanıcı durum enum
+enum UserStatus {
+  AKTIF
+  PASIF
+}
+
+// Rol enum
+enum Role {
+  ADMIN
+  SATINALMA_ADMIN
+  IT_ADMIN
+  FINANS_ADMIN
+  DEPARTMAN_YONETICISI
+  KULLANICI
+}
+
+// Talep durumu enum
+enum TalepDurumu {
+  TASLAK
+  BEKLEMEDE
+  ONAYLANDI
+  REDDEDILDI
+  IPTAL_EDILDI
+  TAMAMLANDI
+  SATINALMA_SURECINDE
+}
+
+model Kullanici {
+  id               String     @id @default(uuid())
+  email            String     @unique
+  ad               String
+  soyad            String
+  sifre            String
+  rol              Role       @default(KULLANICI)
+  departman        Departman  @relation(fields: [departmanId], references: [id])
+  departmanId      String
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  talepler         Talep[]    @relation("TalepEden")
+  onaylar          Onay[]
+  notifications    Bildirim[]
+  yuklenenDosyalar Dosya[]    @relation("DosyaYukleyen")
+  durum            UserStatus @default(AKTIF)
+  sonGirisTarihi   DateTime?
+  resetToken       String?
+  resetTokenExpiry DateTime?
+  etkinlikler      Etkinlik[]
+  gorevler         Gorev[]
+
+  @@map("kullanicilar")
+}
+
+model Departman {
+  id           String      @id @default(uuid())
+  ad           String      @unique
+  aciklama     String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  kullanicilar Kullanici[]
+  talepler     Talep[]
+
+  @@map("departmanlar")
+}
+
+model Talep {
+  id                  String      @id @default(uuid())
+  baslik              String
+  aciklama            String
+  talepEdenId         String
+  talepEden           Kullanici   @relation("TalepEden", fields: [talepEdenId], references: [id])
+  departmanId         String
+  departman           Departman   @relation(fields: [departmanId], references: [id])
+  durum               TalepDurumu @default(TASLAK)
+  oncelik             String
+  urunId              String?
+  urun                Urun?       @relation(fields: [urunId], references: [id])
+  miktar              Int         @default(1)
+  onayAdimi           String?
+  tahminiTeslimTarihi DateTime?
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+  onaylar             Onay[]
+  notlar              TalepNotu[]
+  dosyalar            Dosya[]
+  urunTalepler        UrunTalep[]
+
+  @@index([talepEdenId])
+  @@index([departmanId])
+  @@index([urunId])
+  @@index([durum])
+}
+
+model Onay {
+  id          String     @id @default(uuid())
+  talep       Talep      @relation(fields: [talepId], references: [id])
+  talepId     String
+  onaylayan   Kullanici? @relation(fields: [onaylayanId], references: [id])
+  onaylayanId String?
+  adim        OnayAdim
+  durum       OnayDurumu @default(BEKLEMEDE)
+  aciklama    String?
+  tarih       DateTime?
+  createdAt   DateTime   @default(now())
+
+  @@map("onaylar")
+}
+
+model Urun {
+  id         String      @id @default(uuid())
+  ad         String
+  kategori   String
+  birimFiyat Float
+  birim      String      @default("Adet")
+  aciklama   String?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  talepItems UrunTalep[]
+  Talep      Talep[]
+
+  @@map("urunler")
+}
+
+model UrunTalep {
+  id        String   @id @default(uuid())
+  talep     Talep    @relation(fields: [talepId], references: [id])
+  talepId   String
+  urun      Urun     @relation(fields: [urunId], references: [id])
+  urunId    String
+  miktar    Int
+  tutar     Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("urun_talepler")
+}
+
+model TalepNotu {
+  id        String   @id @default(uuid())
+  talep     Talep    @relation(fields: [talepId], references: [id])
+  talepId   String
+  metin     String
+  createdAt DateTime @default(now())
+
+  @@map("talep_notlari")
+}
+
+model Bildirim {
+  id          String    @id @default(uuid())
+  kullanici   Kullanici @relation(fields: [kullaniciId], references: [id])
+  kullaniciId String
+  baslik      String
+  mesaj       String
+  okundu      Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+
+  @@map("bildirimler")
+}
+
+model Dosya {
+  id            String    @id @default(uuid())
+  ad            String
+  mimeTipi      String
+  boyut         Int
+  yol           String    @unique
+  aciklama      String?
+  talepId       String
+  talep         Talep     @relation(fields: [talepId], references: [id], onDelete: Cascade)
+  yukleyenId    String
+  yukleyen      Kullanici @relation("DosyaYukleyen", fields: [yukleyenId], references: [id])
+  yuklemeTarihi DateTime  @default(now())
+
+  @@index([talepId])
+  @@index([yukleyenId])
+}
+
+enum OnayDurumu {
+  BEKLEMEDE
+  ONAYLANDI
+  REDDEDILDI
+  IPTAL_EDILDI
+  SATINALMA_SURECINDE
+  TAMAMLANDI
+}
+
+enum OnayAdim {
+  DEPARTMAN_YONETICISI
+  IT_DEPARTMANI
+  FINANS_DEPARTMANI
+  SATINALMA_DEPARTMANI
+}
+
+enum Oncelik {
+  DUSUK
+  ORTA
+  YUKSEK
+  KRITIK
+}
+
+// İzin Yönetimi İçin Modeller
+model RolIzin {
+  id        String   @id @default(uuid())
+  rolKodu   String   // Role.ADMIN gibi rol enum değeri
+  izinKodu  String   // "user.view" gibi izin kodu
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([rolKodu, izinKodu])
+}
+
+// İzin Bilgilerini Saklamak İçin Model (UI'da gösterim amaçlı)
+model IzinTanimi {
+  id          String   @id @default(uuid())
+  kod         String   @unique // "user.view" gibi izin kodu
+  ad          String   // "Kullanıcıları Görüntüleme" gibi izin adı
+  aciklama    String?  // İzin açıklaması
+  kategori    String   // "Kullanıcı Yönetimi" gibi kategori
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Takvim etkinlikleri ve görevler için modeller
+model Etkinlik {
+  id          String    @id @default(uuid())
+  baslik      String
+  baslangic   DateTime
+  bitis       DateTime
+  konum       String?
+  aciklama    String?
+  kullaniciId String
+  kullanici   Kullanici @relation(fields: [kullaniciId], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("etkinlikler")
+}
+
+model Gorev {
+  id          String    @id @default(uuid())
+  metin       String
+  tamamlandi  Boolean   @default(false)
+  kullaniciId String
+  kullanici   Kullanici @relation(fields: [kullaniciId], references: [id])
+  sonTarih    DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("gorevler")
+}
