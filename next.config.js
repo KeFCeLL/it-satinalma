@@ -8,10 +8,8 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  // URL API hatalarını düzelt
-  experimental: {
-    serverComponentsExternalPackages: ['@prisma/client']
-  }
+  // External packages config for server components
+  serverExternalPackages: ['@prisma/client']
 }
 
 module.exports = nextConfig
