@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from '@/lib/prisma';
 import fs from "fs";
 import path from "path";
-import { withAuth } from "@/lib/auth";
+import { withAuth } from "@/app/api/middleware";
 
 export const config = {
   api: {

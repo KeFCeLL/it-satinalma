@@ -1,12 +1,14 @@
-import { Metadata } from "next";
+"use client";
+
+import { Suspense } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { LoginForm } from "@/components/auth/login-form";
+import { Metadata } from "next";
 
-export const metadata: Metadata = {
-  title: "Giriş | Green Chemicals IT Satınalma Yönetimi",
-  description: "Green Chemicals IT Satınalma Süreç Yönetimi Sistemi Giriş Sayfası - Oturum yönetimi ve kullanıcı erişimi",
-};
+// Metadata tanımı server component'lerde kullanılabilir,
+// client component'lerde kullanılamaz, bu yüzden kaldırın veya ayrı bir dosyaya taşıyın
+// export const metadata = { ... }
 
 export default function LoginPage() {
   return (
@@ -33,6 +35,7 @@ export default function LoginPage() {
           </blockquote>
         </div>
       </div>
+      
       <div className="lg:p-8">
         <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[350px]">
           <div className="flex flex-col space-y-2 text-center">
@@ -52,7 +55,10 @@ export default function LoginPage() {
               className="mb-4"
             />
           </div>
-          <LoginForm />
+          {/* LoginForm bileşenini Suspense ile sarın */}
+          <Suspense fallback={<div className="p-4 text-center">Yükleniyor...</div>}>
+            <LoginForm />
+          </Suspense>
           <p className="px-8 text-center text-sm text-muted-foreground">
             Devam ederek, şirket{" "}
             <Link
@@ -74,4 +80,4 @@ export default function LoginPage() {
       </div>
     </div>
   );
-} 
+}
