@@ -166,7 +166,7 @@ export function LoginForm() {
         // Başarılı giriş
         recordLoginAttempt(true);
         toast.success("Giriş başarılı!");
-        router.push("/dashboard");
+        router.push("/dashboard-all");
       } else {
         // Başarısız giriş
         recordLoginAttempt(false);
