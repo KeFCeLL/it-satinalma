@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   Clipboard, 
@@ -11,7 +12,7 @@ import {
 import { TodoList } from "@/components/dashboard/todo-list";
 import { DashboardCalendar } from "@/components/dashboard/dashboard-calendar";
 
-export default function DashboardPage() {
+function DashboardContent() {
   const stats = [
     {
       title: "Bekleyen Talepler",
@@ -117,5 +118,13 @@ export default function DashboardPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<div>Yükleniyor...</div>}>
+      <DashboardContent />
+    </Suspense>
   );
 } 
