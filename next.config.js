@@ -8,11 +8,9 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  // Static export yerine server-side rendering kullan
-  output: 'standalone',
-  // Server actions (Next.js 13+)
+  // URL API hatalarını düzelt
   experimental: {
-    serverActions: true,
+    serverComponentsExternalPackages: ['@prisma/client']
   }
 }
 

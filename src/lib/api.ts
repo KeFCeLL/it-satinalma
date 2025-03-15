@@ -9,10 +9,18 @@ export async function fetchWithAuth(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<Response> {
-  // Client-side kontrolü
-  if (typeof window === 'undefined') {
-    console.warn('fetchWithAuth server-side çağrıldı, normal fetch kullanılıyor');
-    return fetch(endpoint, options);
+  // Check if we're on the server side
+  const isServer = typeof window === 'undefined';
+  
+  let url = endpoint;
+  
+  // Add base URL for server-side requests if endpoint is relative
+  if (isServer && endpoint.startsWith('/')) {
+    // Use environment variable or default to localhost
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+    url = `${baseUrl}${endpoint}`;
+    console.warn('fetchWithAuth server-side çağrıldı, URL:', url);
+    return fetch(url, options);
   }
 
   // Options içine credentials ekle
@@ -27,8 +35,8 @@ export async function fetchWithAuth(
 
   try {
     // İstek yap
-    let response = await fetch(endpoint, config);
-    console.log(`API isteği: ${endpoint}, Durum: ${response.status}`);
+    let response = await fetch(url, config);
+    console.log(`API isteği: ${url}, Durum: ${response.status}`);
 
     // Token hatası varsa ve refresh token mevcutsa, token'ı yenile ve tekrar dene
     if (response.status === 401) {
@@ -65,7 +73,7 @@ export async function fetchWithAuth(
           
           // Orijinal isteği tekrarla
           try {
-            const newResponse = await fetch(endpoint, config);
+            const newResponse = await fetch(url, config);
             console.log(`Tekrar edilen istek yanıtı: ${newResponse.status}`);
             return newResponse;
           } catch (retryError) {
@@ -87,7 +95,7 @@ export async function fetchWithAuth(
 
     return response;
   } catch (fetchError) {
-    console.error(`Fetch hatası (${endpoint}):`, fetchError);
+    console.error(`Fetch hatası (${url}):`, fetchError);
     throw fetchError;
   }
 }
@@ -157,16 +165,34 @@ export type PaginationParams = {
 
 // URL'e sorgu parametreleri eklemek için yardımcı işlev
 export function addQueryParams(url: string, params: Record<string, any>): string {
-  const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  const urlObj = new URL(url, origin);
+  // Ensure clean params object
+  const cleanParams: Record<string, string> = {};
   
+  // Add only valid params
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== "") {
-      urlObj.searchParams.append(key, String(value));
+      cleanParams[key] = String(value);
     }
   });
   
-  return urlObj.toString();
+  // If no params to add, return original URL
+  if (Object.keys(cleanParams).length === 0) {
+    return url;
+  }
+  
+  // Add query parameters manually to avoid URL object issues
+  const hasQueryString = url.includes('?');
+  let result = url;
+  
+  Object.entries(cleanParams).forEach(([key, value], index) => {
+    if (index === 0 && !hasQueryString) {
+      result += `?${key}=${encodeURIComponent(value)}`;
+    } else {
+      result += `&${key}=${encodeURIComponent(value)}`;
+    }
+  });
+  
+  return result;
 }
 
 // İstek hata işleyici
