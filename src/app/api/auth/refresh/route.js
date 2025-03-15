@@ -94,16 +94,18 @@ export async function POST(request) {
     // Cookie'leri ayarla
     cookieStore.set("token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      maxAge: 60 * 60, // 1 saat
+      secure: true,
+      sameSite: "lax",
+      maxAge: 60 * 60,
       path: "/",
     });
     
     // Yeni refresh token'ı ayarla
     cookieStore.set("refresh_token", newRefreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      maxAge: 7 * 24 * 60 * 60, // 7 gün
+      secure: true,
+      sameSite: "lax",
+      maxAge: 7 * 24 * 60 * 60,
       path: "/",
     });
 
