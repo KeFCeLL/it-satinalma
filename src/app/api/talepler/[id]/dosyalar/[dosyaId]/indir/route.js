@@ -2,11 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from '@/lib/prisma';
 import fs from "fs";
 import path from "path";
-<<<<<<< HEAD
 import { withAuth } from "@/app/api/middleware";
-=======
-import { withAuth } from "../../../../../middleware";
->>>>>>> 21ceb3168e5b8555fabe4394c29cc1c823942178
 
 export const config = {
   api: {
