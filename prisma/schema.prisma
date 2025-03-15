@@ -103,6 +103,7 @@ model Talep {
   @@index([departmanId])
   @@index([urunId])
   @@index([durum])
+  @@map("talepler")
 }
 
 model Onay {
@@ -220,6 +221,7 @@ model RolIzin {
   updatedAt DateTime @updatedAt
 
   @@unique([rolKodu, izinKodu])
+  @@map("rol_izinler")
 }
 
 // İzin Bilgilerini Saklamak İçin Model (UI'da gösterim amaçlı)
