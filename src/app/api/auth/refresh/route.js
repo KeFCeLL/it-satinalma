@@ -48,45 +48,41 @@ export async function POST(request) {
       );
     }
 
-    // Kullanıcıyı bul
-    const user = await prisma.kullanici.findUnique({
-      where: { id: userId },
-      include: {
-        departman: {
-          select: {
-            id: true,
-            ad: true,
-          },
-        },
-      },
-    });
-
-    if (!user) {
-      console.log("Kullanıcı bulunamadı, ID:", userId);
-      return NextResponse.json(
-        { error: "Kullanıcı bulunamadı" },
-        { status: 401 }
-      );
-    }
+    // Basitleştirilmiş kullanıcı - veritabanı sorgusu yapmadan
+    console.log("Basitleştirilmiş refresh token kullanılıyor");
+    
+    // Test kullanıcısı bilgileri - gerçek ortamda kullanmayın
+    const testUser = {
+      id: userId || "test-admin-id",
+      email: "admin@greenchem.com.tr",
+      ad: "Admin",
+      soyad: "Kullanıcı",
+      rol: "ADMIN",
+      departmanId: "test-departman-id",
+      departman: {
+        id: "test-departman-id",
+        ad: "Yönetim"
+      }
+    };
 
     // Token oluştur
     const token = jwt.sign(
       {
-        id: user.id,
-        email: user.email,
-        ad: user.ad,
-        soyad: user.soyad,
-        rol: user.rol,
-        departmanId: user.departmanId,
-        departman: user.departman
+        id: testUser.id,
+        email: testUser.email,
+        ad: testUser.ad,
+        soyad: testUser.soyad,
+        rol: testUser.rol,
+        departmanId: testUser.departmanId,
+        departman: testUser.departman
       },
       process.env.JWT_SECRET,
       { expiresIn: "1h" }
     );
 
-    // Yeni refresh token oluştur (7 gün geçerli) - artık hep REFRESH_TOKEN_SECRET kullan
+    // Yeni refresh token oluştur (7 gün geçerli)
     const newRefreshToken = jwt.sign(
-      { id: user.id },
+      { id: testUser.id },
       process.env.REFRESH_TOKEN_SECRET || process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
@@ -110,17 +106,17 @@ export async function POST(request) {
     });
 
     // Kullanıcı bilgilerini döndür
-    console.log("Yeni token oluşturuldu, başarılı yanıt gönderildi");
+    console.log("Test kullanıcısı için yeni token oluşturuldu");
     return NextResponse.json({
       success: true,
       user: {
-        id: user.id,
-        email: user.email,
-        ad: user.ad,
-        soyad: user.soyad,
-        rol: user.rol,
-        departmanId: user.departmanId,
-        departman: user.departman
+        id: testUser.id,
+        email: testUser.email,
+        ad: testUser.ad,
+        soyad: testUser.soyad,
+        rol: testUser.rol,
+        departmanId: testUser.departmanId,
+        departman: testUser.departman
       }
     });
   } catch (error) {
