@@ -8,17 +8,9 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  // External packages config for server components
+  // External packages config (güncellenmiş hali)
   serverExternalPackages: ['@prisma/client'],
-  // Experimental features
-  experimental: {
-    missingSuspenseWithCSRBailout: false,
-    // Bu sorun belli dosya yolları ile ilgili olduğundan
-    // serverComponentsExternalPackages özelliğini de belirtiyoruz
-    serverComponents: true,
-    serverComponentsExternalPackages: ['@prisma/client'],
-  },
-  // Standalone output seçeneği ekleyelim
+  // Daha basit output ayarı
   output: 'standalone',
 }
 

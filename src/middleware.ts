@@ -3,22 +3,23 @@ import { jwtVerify } from "jose";
 
 // Korumalı rotaları tanımla (kimlik doğrulama gerektirir)
 const protectedRoutes = [
-  '/talepler',
-  '/urunler',
-  '/bildirimler',
-  '/ayarlar',
-  '/kullanicilar',
-  '/departmanlar',
-  '/kullanici-yonetimi',
-  '/urun-yonetimi'
+  '/dashboard-all',
+  '/dashboard-all/talepler',
+  '/dashboard-all/urunler',
+  '/dashboard-all/bildirimler',
+  '/dashboard-all/ayarlar',
+  '/dashboard-all/kullanicilar',
+  '/dashboard-all/departmanlar',
+  '/dashboard-all/kullanici-yonetimi',
+  '/dashboard-all/urun-yonetimi'
 ];
 
 // Admin rolü gerektiren rotalar
 const adminRoutes = [
-  '/kullanicilar',
-  '/departmanlar',
-  '/urun-yonetimi',
-  '/kullanici-yonetimi'
+  '/dashboard-all/kullanicilar',
+  '/dashboard-all/departmanlar',
+  '/dashboard-all/urun-yonetimi',
+  '/dashboard-all/kullanici-yonetimi'
 ];
 
 // JWT doğrulama fonksiyonu
@@ -56,12 +57,12 @@ export async function middleware(request: NextRequest) {
   }
   
   // Dashboard sayfa kontrolü
-  if (pathname === '/dashboard' || pathname.startsWith('/dashboard')) {
+  if (pathname === '/dashboard-all' || pathname.startsWith('/dashboard-all')) {
     const token = request.cookies.get('token')?.value;
     
     // Token yoksa giriş sayfasına yönlendir
     if (!token) {
-      return NextResponse.redirect(new URL('/login', request.url));
+      return NextResponse.redirect(new URL('/auth/login', request.url));
     }
     
     try {
@@ -71,21 +72,21 @@ export async function middleware(request: NextRequest) {
       return NextResponse.next();
     } catch (error) {
       // Token geçersizse giriş sayfasına yönlendir
-      const response = NextResponse.redirect(new URL('/login', request.url));
+      const response = NextResponse.redirect(new URL('/auth/login', request.url));
       response.cookies.delete('token');
       return response;
     }
   }
   
   // Login sayfası kontrolü
-  if (pathname === '/login') {
+  if (pathname === '/auth/login') {
     const token = request.cookies.get('token')?.value;
     
     // Token varsa ve geçerliyse doğrudan dashboard'a yönlendir
     if (token) {
       try {
         await verifyToken(token);
-        return NextResponse.redirect(new URL('/dashboard', request.url));
+        return NextResponse.redirect(new URL('/dashboard-all', request.url));
       } catch (error) {
         // Token geçersizse cookie'yi temizle ve login sayfasında kal
         const response = NextResponse.next();
@@ -103,7 +104,7 @@ export async function middleware(request: NextRequest) {
     
     // Token yoksa giriş sayfasına yönlendir
     if (!token) {
-      return NextResponse.redirect(new URL('/login', request.url));
+      return NextResponse.redirect(new URL('/auth/login', request.url));
     }
     
     try {
@@ -123,7 +124,7 @@ export async function middleware(request: NextRequest) {
       return NextResponse.next();
     } catch (error) {
       // Token geçersizse giriş sayfasına yönlendir
-      const response = NextResponse.redirect(new URL('/login', request.url));
+      const response = NextResponse.redirect(new URL('/auth/login', request.url));
       response.cookies.delete('token');
       return response;
     }

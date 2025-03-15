@@ -9,16 +9,16 @@ export default async function Home() {
   
   // Token yoksa login sayfasına yönlendir
   if (!token) {
-    redirect("/login");
+    redirect("/auth/login");
   }
 
   try {
     // Token doğrulama
     verify(token, process.env.JWT_SECRET as string);
     // Token geçerliyse dashboard'a yönlendir
-    redirect("/dashboard");
+    redirect("/dashboard-all");
   } catch (error) {
     // Token geçersizse login sayfasına yönlendir
-    redirect("/login");
+    redirect("/auth/login");
   }
 }

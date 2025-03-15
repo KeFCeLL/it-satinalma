@@ -26,32 +26,32 @@ interface NavItem {
 const navItems: NavItem[] = [
   {
     title: "Dashboard",
-    href: "/dashboard",
+    href: "/dashboard-all",
     icon: <LayoutDashboard className="mr-2 h-4 w-4" />,
   },
   {
     title: "Talepler",
-    href: "/talepler",
+    href: "/dashboard-all/talepler",
     icon: <Clipboard className="mr-2 h-4 w-4" />,
   },
   {
     title: "Talep Oluştur",
-    href: "/talep-olustur",
+    href: "/dashboard-all/talep-olustur",
     icon: <FilePlus className="mr-2 h-4 w-4" />,
   },
   {
     title: "Bekleyenler",
-    href: "/bekleyenler",
+    href: "/dashboard-all/bekleyenler",
     icon: <FileCheck className="mr-2 h-4 w-4" />,
   },
   {
     title: "Satınalma",
-    href: "/satinalma",
+    href: "/dashboard-all/satinalma",
     icon: <ShoppingCart className="mr-2 h-4 w-4" />,
   },
   {
     title: "Profil",
-    href: "/profil",
+    href: "/dashboard-all/profil",
     icon: <Settings className="mr-2 h-4 w-4" />,
   },
 ];
@@ -64,12 +64,12 @@ export function DashboardNav() {
   const adminNavItems: NavItem[] = [
     {
       title: "Ürün Yönetimi",
-      href: "/urun-yonetimi",
+      href: "/dashboard-all/urun-yonetimi",
       icon: <Package2 className="mr-2 h-4 w-4" />,
     },
     {
       title: "Kullanıcı Yönetimi",
-      href: "/kullanici-yonetimi",
+      href: "/dashboard-all/kullanici-yonetimi",
       icon: <Users className="mr-2 h-4 w-4" />,
     },
   ];
