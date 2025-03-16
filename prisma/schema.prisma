@@ -166,8 +166,11 @@ model Bildirim {
   kullaniciId String
   baslik      String
   mesaj       String
+  icerik      Json?     // İçerik verileri (tip, talepId, islem gibi)
+  link        String?   // Tıklanabilir yönlendirme linki
   okundu      Boolean   @default(false)
   createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@map("bildirimler")
 }

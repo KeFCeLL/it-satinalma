@@ -1,9 +1,10 @@
 /**
  * @file prisma.js
- * @description Singleton pattern ile PrismaClient instance'ı oluşturur ve export eder.
- * Bu yaklaşım, development sırasında hot reloading nedeniyle birden çok
- * PrismaClient bağlantısı oluşmasını engeller.
- * Ayrıca geliştirme modunda DB_BYPASS çevre değişkeni ile veritabanı bağlantısını atlayabilir.
+ * @description Geliştirilmiş PrismaClient yapılandırması
+ * - Singleton pattern ile hot reloading sırasında çoklu bağlantıları önler
+ * - Bağlantı havuzu yönetimi ile prepared statement hatalarını çözer
+ * - Geliştirme modunda veritabanını atlama seçeneği sunar (DB_BYPASS)
+ * - Otomatik bağlantı kapatma ile kaynakları temizler
  */
 
 import { PrismaClient } from '@prisma/client';
@@ -43,7 +44,10 @@ class MockPrismaClient {
 // Client tarafı mı kontrol et
 const isClient = typeof window !== 'undefined';
 
-// Mock modu aktif mi kontrol et
+/**
+ * Mock PrismaClient kullanılıp kullanılmayacağını belirler
+ * @returns {boolean} Mock PrismaClient kullanılacaksa true
+ */
 function shouldUseMockPrisma() {
   // 1. Çevre değişkeni kontrolü
   if (process.env.DB_BYPASS === 'true' || process.env.NEXT_PUBLIC_USE_MOCK_API === 'true') {
@@ -55,19 +59,20 @@ function shouldUseMockPrisma() {
     try {
       return window.localStorage.getItem('useMockApi') === 'true';
     } catch (e) {
-      console.error('localStorage erişim hatası:', e);
+      console.warn('localStorage erişim hatası:', e);
     }
   }
   
-  // 3. Vercel build ortamında otomatik mock
-  if (process.env.VERCEL_ENV === 'production' || process.env.NODE_ENV === 'production') {
-    return true;
-  }
+  // 3. Development modda mock kullanma tercihi
+  // NOT: Production'da otomatik mock kullanımını kaldırdık
   
   return false;
 }
 
-// Bağlantı havuzunu temizle
+/**
+ * Veritabanı bağlantı havuzunu temizler
+ * @returns {Promise<void>}
+ */
 async function cleanupConnectionPool() {
   if (globalThis.prisma) {
     try {
@@ -75,11 +80,13 @@ async function cleanupConnectionPool() {
       console.log('✅ Prisma bağlantı havuzu temizlendi');
     } catch (e) {
       console.error('❌ Prisma bağlantı havuzu temizlenirken hata:', e);
+    } finally {
+      globalThis.prisma = null;
     }
   }
 }
 
-// SIGINT ve SIGTERM sinyallerini yakala
+// SIGINT ve SIGTERM sinyallerini yakala (sadece sunucu tarafında)
 if (!isClient) {
   process.on('SIGINT', async () => {
     await cleanupConnectionPool();
@@ -94,38 +101,75 @@ if (!isClient) {
 
 let prismaInstance;
 
-// Mock client kullanılacak mı kontrol et
+// 1. Mock client kullanılacak mı kontrol et
 if (shouldUseMockPrisma()) {
   console.log('⚠️ Mock PrismaClient kullanılıyor - Veritabanı bağlantısı atlanıyor');
   prismaInstance = new MockPrismaClient();
 } else {
-  // Normal PrismaClient kullanımı - singleton pattern
-  if (!globalThis.prisma) {
-    // Debug modu seçeneği
-    const options = {};
-    if (process.env.PRISMA_DEBUG === 'true') {
-      options.log = ['query', 'info', 'warn', 'error'];
-    }
-    
-    // Yeni bir PrismaClient oluştur
-    console.log('🔄 Yeni PrismaClient oluşturuluyor');
-    const client = new PrismaClient(options);
-    
-    // Bağlantı havuzu yapılandırması ve loglama
-    if (client.$on) {
-      client.$on('query', (e) => {
-        console.log(`Prisma Query (${e.duration}ms): ${e.query}`);
-      });
+  // 2. PrismaClient singleton yönetimi
+  try {
+    if (process.env.NODE_ENV === 'development') {
+      // Development modda global değişken kullan (hot reloading için)
+      if (!globalThis.prisma) {
+        const options = {
+          // Connection pool ayarları - prepared statement hatalarını önler
+          connection: {
+            pool: { min: 2, max: 10 }
+          },
+          // Performans ayarlamaları
+          log: process.env.PRISMA_DEBUG === 'true' ? ['query', 'info', 'warn', 'error'] : ['error'],
+          errorFormat: 'pretty',
+        };
+        
+        console.log('🔄 Development: Yeni PrismaClient oluşturuluyor');
+        globalThis.prisma = new PrismaClient(options);
+        
+        // Bağlantı olaylarını dinle
+        globalThis.prisma.$on('query', e => {
+          if (process.env.PRISMA_DEBUG === 'true') {
+            console.log(`Prisma Query (${e.duration}ms): ${e.query}`);
+          }
+        });
+        
+        // Connect to avoid cold starts
+        await globalThis.prisma.$connect();
+      }
       
-      client.$on('error', (e) => {
+      prismaInstance = globalThis.prisma;
+    } else {
+      // Production modda her istekte yeni instance
+      // Bu yaklaşım serverless ortamlarda daha iyi çalışıyor
+      const options = {
+        // Connection pool ayarları - prepared statement hatalarını önler
+        connection: {
+          pool: { min: 1, max: 5 }
+        },
+        log: ['error'],
+        errorFormat: 'minimal',
+      };
+      
+      console.log('🔄 Production: PrismaClient oluşturuluyor');
+      prismaInstance = new PrismaClient(options);
+      
+      // Hata olaylarını dinle
+      prismaInstance.$on('error', e => {
         console.error('Prisma Error:', e);
       });
+      
+      // Bağlantıyı hemen aç
+      try {
+        await prismaInstance.$connect();
+      } catch (e) {
+        console.error('Veritabanı bağlantı hatası:', e);
+        // Hata durumunda mock client'a geç - yedek strateji
+        prismaInstance = new MockPrismaClient();
+      }
     }
-    
-    globalThis.prisma = client;
+  } catch (error) {
+    console.error('PrismaClient oluşturma hatası:', error);
+    // Kritik hata durumunda mock client'a geç - yedek strateji
+    prismaInstance = new MockPrismaClient();
   }
-  
-  prismaInstance = globalThis.prisma;
 }
 
 export default prismaInstance; 

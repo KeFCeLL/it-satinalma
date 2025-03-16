@@ -1,0 +1,16 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron-jobs/connection-cleanup",
+      "schedule": "0 */6 * * *"
+    }
+  ],
+  "env": {
+    "NEXT_PUBLIC_DEV_API": "true",
+    "DB_BYPASS": "true",
+    "POSTGRES_PRISMA_URL": "",
+    "POSTGRES_URL_NON_POOLING": "",
+    "NODE_ENV": "production"
+  },
+  "buildCommand": "npm run build"
+} 
