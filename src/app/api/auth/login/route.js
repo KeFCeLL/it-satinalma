@@ -65,12 +65,12 @@ export async function POST(request) {
     );
 
     // Cookie store'u al
-    const cookieStore = await cookies();
+    const cookieStore = cookies();
     
     // Token'ları cookie'lere kaydet
     cookieStore.set("token", token, {
       httpOnly: true,
-      secure: true,
+      secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       maxAge: 60 * 60,
       path: "/",
@@ -78,7 +78,7 @@ export async function POST(request) {
 
     cookieStore.set("refresh_token", refreshToken, {
       httpOnly: true,
-      secure: true,
+      secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       maxAge: 7 * 24 * 60 * 60,
       path: "/",
@@ -99,9 +99,9 @@ export async function POST(request) {
       }
     });
   } catch (error) {
-    console.error("Login işlemi sırasında hata:", error);
+    console.error("Login hatası:", error);
     return NextResponse.json(
-      { error: "Giriş yapılırken bir hata oluştu" },
+      { error: "Giriş sırasında bir hata oluştu" },
       { status: 500 }
     );
   }

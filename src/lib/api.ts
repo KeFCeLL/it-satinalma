@@ -3,16 +3,20 @@
  */
 
 import { useAuth } from "./context/auth-context";
+import { getApiPath } from './api-config';
 
 // API isteği yapmak için yardımcı işlev
 export async function fetchWithAuth(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<Response> {
+  // Mock API desteği için endpoint'i dönüştür
+  const transformedEndpoint = getApiPath(endpoint);
+  
   // Check if we're on the server side
   const isServer = typeof window === 'undefined';
   
-  let url = endpoint;
+  let url = transformedEndpoint;
   
   // For server-side requests during build or when no API is available
   if (isServer) {
