@@ -5,13 +5,50 @@
 import { useAuth } from "./context/auth-context";
 import { getApiPath } from './api-config';
 
+// API kullanım modu
+type ApiMode = 'normal' | 'mock';
+
+// Geçerli API modunu belirle
+function getCurrentApiMode(): ApiMode {
+  // Server-side rendering sırasında
+  if (typeof window === 'undefined') {
+    return 'mock'; // Vercel build ve SSR sırasında mock mod kullan
+  }
+  
+  // Client tarafında
+  try {
+    // Öncelik sırası:
+    // 1. localStorage
+    // 2. çevre değişkenleri
+    // 3. Varsayılan: mock
+    
+    // localStorage kontrolü
+    const storedMode = window.localStorage.getItem('useMockApi');
+    if (storedMode === 'false') return 'normal';
+    if (storedMode === 'true') return 'mock';
+    
+    // Çevre değişkeni kontrolü
+    if (process.env.NEXT_PUBLIC_USE_MOCK_API === 'false') return 'normal';
+    
+    // Varsayılan olarak mock kullan
+    return 'mock';
+  } catch (e) {
+    console.error('API modu belirleme hatası:', e);
+    return 'mock'; // Hata durumunda güvenli mod
+  }
+}
+
 // API isteği yapmak için yardımcı işlev
 export async function fetchWithAuth(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<Response> {
+  // API modunu belirle
+  const apiMode = getCurrentApiMode();
+  console.log(`🔌 API Modu: ${apiMode}`);
+  
   // Mock API desteği için endpoint'i dönüştür
-  const transformedEndpoint = getApiPath(endpoint);
+  const transformedEndpoint = apiMode === 'mock' ? getApiPath(endpoint) : endpoint;
   
   // Check if we're on the server side
   const isServer = typeof window === 'undefined';
@@ -114,16 +151,15 @@ export async function fetchWithAuth(
           return response;
         }
       } catch (refreshError) {
-        console.error("Token yenileme işlemi sırasında hata:", refreshError);
-        // Hata durumunda orijinal yanıtı döndür
-        return response;
+        console.error("Token yenileme sırasında hata:", refreshError);
+        return response; // Orijinal 401 yanıtını döndür
       }
     }
 
     return response;
-  } catch (fetchError) {
-    console.error(`Fetch hatası (${url}):`, fetchError);
-    throw fetchError;
+  } catch (error) {
+    console.error("API isteği hatası:", error);
+    throw error;
   }
 }
 
@@ -192,45 +228,29 @@ export type PaginationParams = {
 
 // URL'e sorgu parametreleri eklemek için yardımcı işlev
 export function addQueryParams(url: string, params: Record<string, any>): string {
-  // Ensure clean params object
-  const cleanParams: Record<string, string> = {};
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const urlObj = new URL(url, origin);
   
-  // Add only valid params
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== "") {
-      cleanParams[key] = String(value);
+      urlObj.searchParams.append(key, String(value));
     }
   });
   
-  // If no params to add, return original URL
-  if (Object.keys(cleanParams).length === 0) {
-    return url;
-  }
-  
-  // Add query parameters manually to avoid URL object issues
-  const hasQueryString = url.includes('?');
-  let result = url;
-  
-  Object.entries(cleanParams).forEach(([key, value], index) => {
-    if (index === 0 && !hasQueryString) {
-      result += `?${key}=${encodeURIComponent(value)}`;
-    } else {
-      result += `&${key}=${encodeURIComponent(value)}`;
-    }
-  });
-  
-  return result;
+  return urlObj.toString();
 }
 
-// İstek hata işleyici
+// API istek hatalarını işlemek için yardımcı fonksiyon
 export const handleRequestError = (error: any) => {
-  console.error("API isteği hatası:", error);
-  if (error instanceof Response && error.status === 401) {
-    // Kimlik doğrulama hatası, kullanıcıyı giriş sayfasına yönlendir
-    if (typeof window !== 'undefined') {
-      window.location.href = '/login';
-    }
-    return "Oturum süresi doldu, lütfen tekrar giriş yapın.";
+  if (error instanceof Error) {
+    return {
+      success: false,
+      message: error.message
+    };
   }
-  return error.message || "Bir hata oluştu. Lütfen daha sonra tekrar deneyin.";
+  
+  return {
+    success: false,
+    message: "Beklenmeyen bir hata oluştu"
+  };
 }; 

@@ -40,39 +40,92 @@ class MockPrismaClient {
   }
 }
 
-// Geliştirme modunda bağlantıyı atla seçeneği
-const shouldBypassDB = process.env.DB_BYPASS === 'true';
-let prismaInstance;
+// Client tarafı mı kontrol et
+const isClient = typeof window !== 'undefined';
 
-// DB_BYPASS aktifse mock client kullan
-if (shouldBypassDB) {
-  console.log('⚠️ Veritabanı bağlantısı atlama modu aktif (DB_BYPASS=true)');
-  prismaInstance = new MockPrismaClient();
-} else {
-  // Normal PrismaClient kullanımı - singleton pattern
-  const globalForPrisma = global;
-  
-  // Debug modu seçeneği
-  const options = {};
-  if (process.env.PRISMA_DEBUG === 'true') {
-    options.log = ['query', 'info', 'warn', 'error'];
+// Mock modu aktif mi kontrol et
+function shouldUseMockPrisma() {
+  // 1. Çevre değişkeni kontrolü
+  if (process.env.DB_BYPASS === 'true' || process.env.NEXT_PUBLIC_USE_MOCK_API === 'true') {
+    return true;
   }
   
-  // Singleton pattern ile PrismaClient oluştur
-  if (!globalForPrisma.prisma) {
-    globalForPrisma.prisma = new PrismaClient(options);
-    
-    // Bağlantı havuzu yapılandırması
-    if (globalForPrisma.prisma.$on) {
-      globalForPrisma.prisma.$on('query', (e) => {
-        console.log('Prisma Query: ' + e.query);
-        console.log('Params: ' + e.params);
-        console.log('Duration: ' + e.duration + 'ms');
-      });
+  // 2. Client tarafında localStorage kontrolü
+  if (isClient) {
+    try {
+      return window.localStorage.getItem('useMockApi') === 'true';
+    } catch (e) {
+      console.error('localStorage erişim hatası:', e);
     }
   }
   
-  prismaInstance = globalForPrisma.prisma;
+  // 3. Vercel build ortamında otomatik mock
+  if (process.env.VERCEL_ENV === 'production' || process.env.NODE_ENV === 'production') {
+    return true;
+  }
+  
+  return false;
+}
+
+// Bağlantı havuzunu temizle
+async function cleanupConnectionPool() {
+  if (globalThis.prisma) {
+    try {
+      await globalThis.prisma.$disconnect();
+      console.log('✅ Prisma bağlantı havuzu temizlendi');
+    } catch (e) {
+      console.error('❌ Prisma bağlantı havuzu temizlenirken hata:', e);
+    }
+  }
+}
+
+// SIGINT ve SIGTERM sinyallerini yakala
+if (!isClient) {
+  process.on('SIGINT', async () => {
+    await cleanupConnectionPool();
+    process.exit(0);
+  });
+  
+  process.on('SIGTERM', async () => {
+    await cleanupConnectionPool();
+    process.exit(0);
+  });
+}
+
+let prismaInstance;
+
+// Mock client kullanılacak mı kontrol et
+if (shouldUseMockPrisma()) {
+  console.log('⚠️ Mock PrismaClient kullanılıyor - Veritabanı bağlantısı atlanıyor');
+  prismaInstance = new MockPrismaClient();
+} else {
+  // Normal PrismaClient kullanımı - singleton pattern
+  if (!globalThis.prisma) {
+    // Debug modu seçeneği
+    const options = {};
+    if (process.env.PRISMA_DEBUG === 'true') {
+      options.log = ['query', 'info', 'warn', 'error'];
+    }
+    
+    // Yeni bir PrismaClient oluştur
+    console.log('🔄 Yeni PrismaClient oluşturuluyor');
+    const client = new PrismaClient(options);
+    
+    // Bağlantı havuzu yapılandırması ve loglama
+    if (client.$on) {
+      client.$on('query', (e) => {
+        console.log(`Prisma Query (${e.duration}ms): ${e.query}`);
+      });
+      
+      client.$on('error', (e) => {
+        console.error('Prisma Error:', e);
+      });
+    }
+    
+    globalThis.prisma = client;
+  }
+  
+  prismaInstance = globalThis.prisma;
 }
 
 export default prismaInstance; 
