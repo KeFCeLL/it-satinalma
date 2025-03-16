@@ -2,29 +2,27 @@ import { NextResponse } from 'next/server';
 
 // Mock kategori verileri
 let mockKategoriler = [
-  "Bilgisayar", 
-  "Yazılım", 
-  "Elektronik", 
-  "Monitör", 
-  "Aksesuar", 
-  "Klima", 
-  "Ağ Ekipmanları", 
-  "Sunucu", 
-  "Depolama", 
-  "Diğer"
+  "Bilgisayar",
+  "Monitör",
+  "Yazılım",
+  "Aksesuar",
+  "Elektronik",
+  "Klima",
+  "Mobilya",
+  "Kırtasiye"
 ];
 
 // Kategorileri getir
 export async function GET(request) {
   try {
-    console.log('Mock kategorileri getiriliyor');
+    console.log('Mock kategoriler getiriliyor');
     
     return NextResponse.json({
       success: true,
       kategoriler: mockKategoriler
     });
   } catch (error) {
-    console.error('Kategoriler getirme hatası:', error);
+    console.error('Kategorileri getirme hatası:', error);
     return NextResponse.json(
       { success: false, message: 'Kategoriler alınamadı', error: error.message },
       { status: 500 }
@@ -36,18 +34,17 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const body = await request.json();
+    const { kategori } = body;
     
-    if (!body.kategori) {
+    if (!kategori) {
       return NextResponse.json(
         { success: false, message: 'Kategori adı zorunludur' },
         { status: 400 }
       );
     }
     
-    const yeniKategori = body.kategori.trim();
-    
     // Kategori zaten var mı kontrol et
-    if (mockKategoriler.includes(yeniKategori)) {
+    if (mockKategoriler.includes(kategori)) {
       return NextResponse.json(
         { success: false, message: 'Bu kategori zaten mevcut' },
         { status: 400 }
@@ -55,9 +52,7 @@ export async function POST(request) {
     }
     
     // Kategoriyi ekle
-    mockKategoriler.push(yeniKategori);
-    
-    console.log('Yeni kategori eklendi:', yeniKategori);
+    mockKategoriler.push(kategori);
     
     return NextResponse.json({
       success: true,
@@ -81,14 +76,14 @@ export async function DELETE(request) {
     
     if (!kategori) {
       return NextResponse.json(
-        { success: false, message: 'Kategori adı zorunludur' },
+        { success: false, message: 'Silinecek kategori adı belirtilmedi' },
         { status: 400 }
       );
     }
     
     // Kategori var mı kontrol et
-    const index = mockKategoriler.findIndex(k => k === kategori);
-    if (index === -1) {
+    const kategoriIndex = mockKategoriler.indexOf(kategori);
+    if (kategoriIndex === -1) {
       return NextResponse.json(
         { success: false, message: 'Kategori bulunamadı' },
         { status: 404 }
@@ -97,8 +92,6 @@ export async function DELETE(request) {
     
     // Kategoriyi sil
     mockKategoriler = mockKategoriler.filter(k => k !== kategori);
-    
-    console.log('Kategori silindi:', kategori);
     
     return NextResponse.json({
       success: true,
