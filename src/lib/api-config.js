@@ -23,9 +23,17 @@ export function getApiPath(path) {
   }
   
   // Mock kullanılacak mı kontrol et (client side için)
-  const useMock = typeof window !== 'undefined' && 
-                 (process.env.NEXT_PUBLIC_USE_MOCK_API === 'true' || 
-                  localStorage.getItem('useMockApi') === 'true');
+  let useMock = false;
+  
+  try {
+    // Güvenli bir şekilde localStorage'a erişmeyi dene
+    if (typeof window !== 'undefined' && window.localStorage) {
+      useMock = process.env.NEXT_PUBLIC_USE_MOCK_API === 'true' || 
+                window.localStorage.getItem('useMockApi') === 'true';
+    }
+  } catch (e) {
+    console.error('localStorage erişim hatası:', e);
+  }
 
   // Eğer mock kullanılacaksa, desteklenen endpoint'ler için mock versiyonuna yönlendir
   if (useMock) {
@@ -46,14 +54,19 @@ export function getApiPath(path) {
 
 // Kullanıcı tarafında mock API'yi açıp kapatmak için
 export function toggleMockApi(enable) {
-  if (typeof window !== 'undefined') {
-    if (enable) {
-      localStorage.setItem('useMockApi', 'true');
-      console.log('🔧 Mock API modu açıldı');
-    } else {
-      localStorage.removeItem('useMockApi');
-      console.log('🔧 Mock API modu kapatıldı');
+  try {
+    // Güvenli bir şekilde localStorage'a erişmeyi dene
+    if (typeof window !== 'undefined' && window.localStorage) {
+      if (enable) {
+        window.localStorage.setItem('useMockApi', 'true');
+        console.log('🔧 Mock API modu açıldı');
+      } else {
+        window.localStorage.removeItem('useMockApi');
+        console.log('🔧 Mock API modu kapatıldı');
+      }
     }
+  } catch (e) {
+    console.error('localStorage erişim hatası:', e);
   }
 }
 
