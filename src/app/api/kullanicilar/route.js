@@ -206,6 +206,11 @@ async function getKullanicilarHandler(request) {
         success: true,
         data: kullanicilar,
         meta,
+      }, {
+        headers: {
+          'Cache-Control': 'no-store, max-age=0',
+          'Content-Type': 'application/json'
+        }
       });
     } catch (dbError) {
       console.error('Veritabanı hatası, mock veriye dönülüyor:', dbError);
@@ -312,7 +317,7 @@ async function createKullaniciHandler(request) {
       }
       
       // Şifreyi hashle
-      const hashedPassword = await bcrypt.hash(sifre, 10);
+      const hashedSifre = await bcrypt.hash(sifre, 10);
       
       // Yeni kullanıcı oluştur
       const kullanici = await prisma.kullanici.create({
@@ -320,7 +325,7 @@ async function createKullaniciHandler(request) {
           email,
           ad,
           soyad,
-          sifre: hashedPassword,
+          sifre: hashedSifre,
           rol,
           departmanId,
         },
@@ -337,14 +342,17 @@ async function createKullaniciHandler(request) {
               ad: true,
             },
           },
-          createdAt: true,
-          updatedAt: true,
         },
       });
       
       return NextResponse.json({
         success: true,
-        user: kullanici,
+        kullanici,
+      }, {
+        headers: {
+          'Cache-Control': 'no-store, max-age=0',
+          'Content-Type': 'application/json'
+        }
       });
     } catch (dbError) {
       console.error('Veritabanı hatası, mock veriye dönülüyor:', dbError);
@@ -394,6 +402,14 @@ async function createKullaniciHandler(request) {
       { success: false, message: 'Kullanıcı oluşturulurken bir hata oluştu', error: error.message },
       { status: 500 }
     );
+  } finally {
+    if (!IS_DEV_MODE) {
+      try {
+        await prisma.$disconnect();
+      } catch (error) {
+        console.error('Prisma bağlantı kapatma hatası:', error);
+      }
+    }
   }
 }
 

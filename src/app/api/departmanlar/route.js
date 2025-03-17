@@ -134,6 +134,11 @@ async function getDepartmanlarHandler(request) {
       return NextResponse.json({
         success: true,
         departmanlar: departmanlar,
+      }, { 
+        headers: {
+          'Cache-Control': 'no-store, max-age=0',
+          'Content-Type': 'application/json'
+        } 
       });
     } catch (dbError) {
       console.error('Veritabanı hatası, mock veriye dönülüyor:', dbError);
