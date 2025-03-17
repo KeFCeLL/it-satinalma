@@ -6,10 +6,11 @@
     }
   ],
   "env": {
-    "NEXT_PUBLIC_DEV_API": "true",
-    "DB_BYPASS": "true",
-    "POSTGRES_PRISMA_URL": "",
-    "POSTGRES_URL_NON_POOLING": "",
+    "NEXT_PUBLIC_DEV_API": "false",
+    "DB_BYPASS": "false",
+    "POSTGRES_PRISMA_URL": "postgres://neondb_owner:npg_Q8KRAZHn6Pfa@ep-dawn-wave-a5gz999a-pooler.us-east-2.aws.neon.tech/neondb?connect_timeout=15&sslmode=require",
+    "POSTGRES_URL": "postgres://neondb_owner:npg_Q8KRAZHn6Pfa@ep-dawn-wave-a5gz999a-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require",
+    "POSTGRES_URL_NON_POOLING": "postgres://neondb_owner:npg_Q8KRAZHn6Pfa@ep-dawn-wave-a5gz999a.us-east-2.aws.neon.tech/neondb?sslmode=require",
     "NODE_ENV": "production"
   },
   "buildCommand": "npm run build"
