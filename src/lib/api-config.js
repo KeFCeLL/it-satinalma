@@ -22,6 +22,52 @@ const apiConfig = {
     urunler: '/api/urunler-mock',
     talepler: '/api/talepler-mock',
     roller: '/api/roller-mock'
+  },
+  
+  // Varsayılan Fetch seçenekleri
+  defaultFetchOptions: {
+    headers: {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    },
+    credentials: 'include',
+    cache: 'no-store'
+  },
+  
+  // GET istekleri için varsayılan fetch ayarları
+  getRequestOptions() {
+    return {
+      method: 'GET',
+      ...this.defaultFetchOptions,
+    };
+  },
+  
+  // POST istekleri için varsayılan fetch ayarları
+  postRequestOptions(data) {
+    return {
+      method: 'POST',
+      ...this.defaultFetchOptions,
+      body: JSON.stringify(data)
+    };
+  },
+  
+  // PUT istekleri için varsayılan fetch ayarları
+  putRequestOptions(data) {
+    return {
+      method: 'PUT',
+      ...this.defaultFetchOptions,
+      body: JSON.stringify(data)
+    };
+  },
+  
+  // DELETE istekleri için varsayılan fetch ayarları
+  deleteRequestOptions() {
+    return {
+      method: 'DELETE',
+      ...this.defaultFetchOptions
+    };
   }
 };
 
@@ -94,6 +140,31 @@ export function toggleMockApi(enable) {
   } catch (e) {
     console.error('localStorage erişim hatası:', e);
   }
+}
+
+// API isteği yapmak için yardımcı fonksiyon
+export async function fetchWithoutCache(url, options = {}) {
+  // Varsayılan önbellekleme önleyici başlıkları ekle
+  const headers = {
+    ...options.headers,
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0'
+  };
+  
+  // Yeni URL nesnesi oluştur ve önbellek parametresi ekle
+  const urlObj = new URL(url, window.location.origin);
+  urlObj.searchParams.append('_nocache', Date.now().toString());
+  
+  // Güncellenmiş seçenekler
+  const updatedOptions = {
+    ...options,
+    headers,
+    cache: 'no-store'
+  };
+  
+  // Fetch isteği yap
+  return fetch(urlObj.toString(), updatedOptions);
 }
 
 export default apiConfig;

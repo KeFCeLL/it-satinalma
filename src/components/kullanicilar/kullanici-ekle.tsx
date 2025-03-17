@@ -64,36 +64,64 @@ export function KullaniciEkle({ onSuccess }: KullaniciEkleProps) {
     console.log("Form değerlerini izle:", form.getValues());
   }, [form.formState.isDirty]); // Form değerleri değiştiğinde loglama
 
-  // Departmanları yükle
+  // Departmanları getir
   useEffect(() => {
     const fetchDepartmanlar = async () => {
       try {
-        // Gerçek API çağrısı yap
+        // önce yerel depodan departmanları kontrol et
+        const storedDepartments = localStorage.getItem('departmanlar');
+        if (storedDepartments) {
+          try {
+            const parsedDepartments = JSON.parse(storedDepartments);
+            console.log("Yerel depodan departmanlar yüklendi:", parsedDepartments);
+            setDepartmanlar(parsedDepartments);
+          } catch (parseError) {
+            console.error("Departmanlar yerel depodan ayrıştırılamadı:", parseError);
+          }
+        }
+        
+        // Departmanları API'den getir
+        console.log("Departmanlar API'si çağrılıyor...");
         const response = await fetch('/api/departmanlar?hepsi=true', {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+          },
           credentials: 'include'
         });
         
         if (!response.ok) {
-          throw new Error(`Departmanlar alınırken hata: ${response.status}`);
+          const errorText = await response.text();
+          throw new Error(`API hatası: ${response.status} ${response.statusText}. ${errorText.substring(0, 100)}`);
         }
         
+        // Yanıtı console'a yazdır (hata ayıklama için)
+        console.log("Departmanlar API yanıtı status:", response.status, response.statusText);
+        
         const data = await response.json();
-        if (data.departmanlar) {
-          setDepartmanlar(data.departmanlar);
-        } else if (data.data) {
+        console.log("Departmanlar API yanıtı:", data);
+        
+        // Yanıttaki departmanlar dizisini kontrol et
+        if (data.departmanlar && Array.isArray(data.departmanlar)) {
+          if (data.departmanlar.length > 0) {
+            console.log(`${data.departmanlar.length} departman başarıyla yüklendi`);
+            setDepartmanlar(data.departmanlar);
+            
+            // Yeni departmanları yerel depoya da kaydet
+            localStorage.setItem('departmanlar', JSON.stringify(data.departmanlar));
+          } else {
+            console.log("Departmanlar dizisi boş, varsayılan departmanlar kullanılacak");
+            
+            // Departman yoksa 2 örnek departman ekleme isteği gönder
+            await createDefaultDepartments();
+          }
+        } else if (data.data && Array.isArray(data.data)) {
           setDepartmanlar(data.data);
+          localStorage.setItem('departmanlar', JSON.stringify(data.data));
         } else {
-          // API yanıt formatı beklenenden farklı, mock verilerle devam et
-          console.warn("API yanıt formatı beklenen gibi değil, varsayılan departmanlar kullanılıyor", data);
-          const mockDepartmanlar: Department[] = [
-            { id: "1", ad: "Yönetim", aciklama: "Yönetim departmanı", createdAt: "", updatedAt: "" },
-            { id: "2", ad: "Satınalma", aciklama: "Satınalma departmanı", createdAt: "", updatedAt: "" },
-            { id: "3", ad: "IT", aciklama: "IT departmanı", createdAt: "", updatedAt: "" },
-            { id: "4", ad: "Finans", aciklama: "Finans departmanı", createdAt: "", updatedAt: "" },
-            { id: "5", ad: "İnsan Kaynakları", aciklama: "İnsan Kaynakları departmanı", createdAt: "", updatedAt: "" },
-          ];
-          
-          setDepartmanlar(mockDepartmanlar);
+          throw new Error("API'den geçerli departman verisi alınamadı");
         }
       } catch (error: any) {
         console.error("Departmanlar yüklenirken hata:", error);
@@ -109,6 +137,52 @@ export function KullaniciEkle({ onSuccess }: KullaniciEkleProps) {
         ];
         
         setDepartmanlar(mockDepartmanlar);
+      }
+    };
+
+    // Varsayılan departmanları oluşturmak için yardımcı fonksiyon
+    const createDefaultDepartments = async () => {
+      try {
+        const defaultDepartments = [
+          { ad: "Yazılım Geliştirme", aciklama: "Yazılım geliştirme ve bakım" },
+          { ad: "İnsan Kaynakları", aciklama: "Personel yönetimi ve işe alım" }
+        ];
+        
+        for (const dept of defaultDepartments) {
+          console.log(`Varsayılan departman oluşturuluyor: ${dept.ad}`);
+          
+          const response = await fetch('/api/departmanlar', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Cache-Control': 'no-cache'
+            },
+            body: JSON.stringify(dept),
+            credentials: 'include'
+          });
+          
+          if (response.ok) {
+            console.log(`${dept.ad} departmanı başarıyla oluşturuldu`);
+          } else {
+            console.error(`${dept.ad} departmanı oluşturulamadı: ${response.status} ${response.statusText}`);
+          }
+        }
+        
+        // Departmanları tekrar yükle
+        const refreshResponse = await fetch('/api/departmanlar?hepsi=true', {
+          cache: 'no-store',
+          credentials: 'include'
+        });
+        
+        if (refreshResponse.ok) {
+          const refreshData = await refreshResponse.json();
+          if (refreshData.departmanlar && Array.isArray(refreshData.departmanlar)) {
+            setDepartmanlar(refreshData.departmanlar);
+            localStorage.setItem('departmanlar', JSON.stringify(refreshData.departmanlar));
+          }
+        }
+      } catch (error: any) {
+        console.error("Varsayılan departmanlar oluşturulamadı:", error);
       }
     };
 

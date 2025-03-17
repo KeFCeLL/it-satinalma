@@ -195,7 +195,25 @@ export function DepartmanYonetimi() {
       toast.success(successMessage);
       setIsDialogOpen(false);
       form.reset();
-      fetchDepartmanlar(); // Listeyi yenile
+      
+      // Yanıt başarılıysa, departman listesini manuel olarak güncelleyelim
+      if (responseData.departman || responseData.data) {
+        const yeniDepartman = responseData.departman || responseData.data;
+        
+        if (editingDepartment) {
+          // Mevcut departmanı güncelle
+          const updatedDepartmanlar = departmanlar.map(dep => 
+            dep.id === editingDepartment.id ? yeniDepartman : dep
+          );
+          setDepartmanlar(updatedDepartmanlar);
+        } else {
+          // Yeni departmanı listeye ekle
+          setDepartmanlar(prevDepartmanlar => [yeniDepartman, ...prevDepartmanlar]);
+        }
+      } else {
+        // API'den alınan yanıtta departman verisi yoksa, tam listeyi yeniden çekelim
+        fetchDepartmanlar();
+      }
     } catch (error: any) {
       console.error("Departman işlemi hatası:", error);
       toast.error(`İşlem sırasında hata oluştu: ${error.message}`);

@@ -37,6 +37,7 @@ import { User } from "@/lib/services/user-service";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { KullaniciDuzenle } from "./kullanici-duzenle";
+import { fetchWithoutCache } from "@/lib/api-config";
 
 export function KullaniciListe() {
   const router = useRouter();
@@ -54,7 +55,7 @@ export function KullaniciListe() {
     console.log("Kullanıcılar getiriliyor...");
     
     try {
-      const response = await fetch("/api/kullanicilar", {
+      const response = await fetchWithoutCache("/api/kullanicilar", {
         credentials: 'include'
       });
       
