@@ -26,6 +26,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 import { Department } from "@/lib/services/department-service";
+import { fetchWithoutCache } from "@/lib/api-config";
 
 // Form doğrulama şeması
 const formSchema = z.object({
@@ -46,6 +47,7 @@ export function KullaniciEkle({ onSuccess }: KullaniciEkleProps) {
   const [loading, setLoading] = useState(false);
   const [departmanlar, setDepartmanlar] = useState<Department[]>([]);
   const router = useRouter();
+  const [loadingDepartments, setLoadingDepartments] = useState(false);
 
   // Form oluştur
   const form = useForm<z.infer<typeof formSchema>>({
@@ -64,130 +66,66 @@ export function KullaniciEkle({ onSuccess }: KullaniciEkleProps) {
     console.log("Form değerlerini izle:", form.getValues());
   }, [form.formState.isDirty]); // Form değerleri değiştiğinde loglama
 
-  // Departmanları getir
+  // Sayfa yüklendiğinde departmanları getir
   useEffect(() => {
-    const fetchDepartmanlar = async () => {
-      try {
-        // önce yerel depodan departmanları kontrol et
-        const storedDepartments = localStorage.getItem('departmanlar');
-        if (storedDepartments) {
-          try {
-            const parsedDepartments = JSON.parse(storedDepartments);
-            console.log("Yerel depodan departmanlar yüklendi:", parsedDepartments);
-            setDepartmanlar(parsedDepartments);
-          } catch (parseError) {
-            console.error("Departmanlar yerel depodan ayrıştırılamadı:", parseError);
-          }
-        }
-        
-        // Departmanları API'den getir
-        console.log("Departmanlar API'si çağrılıyor...");
-        const response = await fetch('/api/departmanlar?hepsi=true', {
-          cache: 'no-store',
-          headers: {
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
-            'Expires': '0'
-          },
-          credentials: 'include'
-        });
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`API hatası: ${response.status} ${response.statusText}. ${errorText.substring(0, 100)}`);
-        }
-        
-        // Yanıtı console'a yazdır (hata ayıklama için)
-        console.log("Departmanlar API yanıtı status:", response.status, response.statusText);
-        
-        const data = await response.json();
-        console.log("Departmanlar API yanıtı:", data);
-        
-        // Yanıttaki departmanlar dizisini kontrol et
-        if (data.departmanlar && Array.isArray(data.departmanlar)) {
-          if (data.departmanlar.length > 0) {
-            console.log(`${data.departmanlar.length} departman başarıyla yüklendi`);
-            setDepartmanlar(data.departmanlar);
-            
-            // Yeni departmanları yerel depoya da kaydet
-            localStorage.setItem('departmanlar', JSON.stringify(data.departmanlar));
-          } else {
-            console.log("Departmanlar dizisi boş, varsayılan departmanlar kullanılacak");
-            
-            // Departman yoksa 2 örnek departman ekleme isteği gönder
-            await createDefaultDepartments();
-          }
-        } else if (data.data && Array.isArray(data.data)) {
-          setDepartmanlar(data.data);
-          localStorage.setItem('departmanlar', JSON.stringify(data.data));
-        } else {
-          throw new Error("API'den geçerli departman verisi alınamadı");
-        }
-      } catch (error: any) {
-        console.error("Departmanlar yüklenirken hata:", error);
-        toast.error(`Departmanlar yüklenirken hata oluştu: ${error.message}`);
-        
-        // Hata durumunda varsayılan departmanları göster
-        const mockDepartmanlar: Department[] = [
-          { id: "1", ad: "Yönetim", aciklama: "Yönetim departmanı", createdAt: "", updatedAt: "" },
-          { id: "2", ad: "Satınalma", aciklama: "Satınalma departmanı", createdAt: "", updatedAt: "" },
-          { id: "3", ad: "IT", aciklama: "IT departmanı", createdAt: "", updatedAt: "" },
-          { id: "4", ad: "Finans", aciklama: "Finans departmanı", createdAt: "", updatedAt: "" },
-          { id: "5", ad: "İnsan Kaynakları", aciklama: "İnsan Kaynakları departmanı", createdAt: "", updatedAt: "" },
-        ];
-        
-        setDepartmanlar(mockDepartmanlar);
-      }
-    };
-
-    // Varsayılan departmanları oluşturmak için yardımcı fonksiyon
-    const createDefaultDepartments = async () => {
-      try {
-        const defaultDepartments = [
-          { ad: "Yazılım Geliştirme", aciklama: "Yazılım geliştirme ve bakım" },
-          { ad: "İnsan Kaynakları", aciklama: "Personel yönetimi ve işe alım" }
-        ];
-        
-        for (const dept of defaultDepartments) {
-          console.log(`Varsayılan departman oluşturuluyor: ${dept.ad}`);
-          
-          const response = await fetch('/api/departmanlar', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Cache-Control': 'no-cache'
-            },
-            body: JSON.stringify(dept),
-            credentials: 'include'
-          });
-          
-          if (response.ok) {
-            console.log(`${dept.ad} departmanı başarıyla oluşturuldu`);
-          } else {
-            console.error(`${dept.ad} departmanı oluşturulamadı: ${response.status} ${response.statusText}`);
-          }
-        }
-        
-        // Departmanları tekrar yükle
-        const refreshResponse = await fetch('/api/departmanlar?hepsi=true', {
-          cache: 'no-store',
-          credentials: 'include'
-        });
-        
-        if (refreshResponse.ok) {
-          const refreshData = await refreshResponse.json();
-          if (refreshData.departmanlar && Array.isArray(refreshData.departmanlar)) {
-            setDepartmanlar(refreshData.departmanlar);
-            localStorage.setItem('departmanlar', JSON.stringify(refreshData.departmanlar));
-          }
-        }
-      } catch (error: any) {
-        console.error("Varsayılan departmanlar oluşturulamadı:", error);
-      }
-    };
-
     fetchDepartmanlar();
   }, []);
+
+  // Departmanları getir
+  const fetchDepartmanlar = async () => {
+    setLoadingDepartments(true);
+    
+    try {
+      console.log('🔄 Departmanlar getiriliyor...');
+      
+      // Önce LocalStorage'dan yüklemeyi dene (hızlı erişim için)
+      const savedDepartments = localStorage.getItem('it_satinalma_departments');
+      if (savedDepartments) {
+        try {
+          const parsedDepts = JSON.parse(savedDepartments);
+          if (Array.isArray(parsedDepts) && parsedDepts.length > 0) {
+            console.log('📦 Departmanlar localStorage\'dan yüklendi:', parsedDepts.length);
+            setDepartmanlar(parsedDepts);
+            setLoadingDepartments(false);
+            // Yine de arka planda güncel veriyi API'den çekelim
+          }
+        } catch (e) {
+          console.error('LocalStorage parse hatası:', e);
+        }
+      }
+      
+      // API'den departmanları getir, önbelleği atlayarak
+      const response = await fetchWithoutCache('/api/departmanlar?hepsi=true');
+      console.log('📊 API yanıtı:', response.status, response.statusText);
+      
+      if (!response.ok) {
+        throw new Error(`API hatası: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      console.log('📋 Departmanlar:', data);
+      
+      if (data.success && data.departmanlar && Array.isArray(data.departmanlar)) {
+        setDepartmanlar(data.departmanlar);
+        
+        // LocalStorage'a kaydet
+        localStorage.setItem('it_satinalma_departments', JSON.stringify(data.departmanlar));
+      } else if (data.data && Array.isArray(data.data)) {
+        setDepartmanlar(data.data);
+        
+        // LocalStorage'a kaydet
+        localStorage.setItem('it_satinalma_departments', JSON.stringify(data.data));
+      } else {
+        toast.error("Departman verileri getirilirken beklenmeyen yanıt formatı");
+        console.error("Geçersiz departman veri formatı:", data);
+      }
+    } catch (error: any) {
+      console.error("Departmanlar yüklenirken hata:", error);
+      toast.error(`Departmanlar yüklenirken hata: ${error.message}`);
+    } finally {
+      setLoadingDepartments(false);
+    }
+  };
 
   // Form gönderildiğinde
   const onSubmit = async (values: z.infer<typeof formSchema>) => {

@@ -52,56 +52,42 @@ export function KullaniciListe() {
   // Kullanıcıları getir
   const fetchUsers = async () => {
     setLoading(true);
-    console.log("Kullanıcılar getiriliyor...");
-    
     try {
-      const response = await fetchWithoutCache("/api/kullanicilar", {
-        credentials: 'include'
-      });
-      
-      console.log("API yanıtı:", response.status, response.statusText);
+      // API isteği
+      const response = await fetchWithoutCache(`/api/kullanicilar?hepsi=true`);
+      console.log('📊 Kullanıcılar API yanıtı:', response.status, response.statusText);
       
       if (!response.ok) {
-        let errorText = "";
-        try {
-          errorText = await response.text();
-          console.error("API hatası (text):", errorText);
-        } catch (e) {
-          console.error("API yanıtı text olarak okunamadı:", e);
-        }
+        throw new Error(`API hatası: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      console.log('📋 Kullanıcılar veri:', data);
+      
+      if (data.success && data.kullanicilar && Array.isArray(data.kullanicilar)) {
+        // Her kullanıcıya durum bilgisi ekle (eğer yoksa)
+        const usersWithStatus = data.kullanicilar.map((user: any) => ({
+          ...user,
+          durum: user.durum || 'AKTIF' // Varsayılan olarak AKTIF
+        }));
         
-        throw new Error(`Kullanıcılar alınırken hata: ${response.status} ${response.statusText}. Detay: ${errorText.substring(0, 100)}...`);
+        setUsers(usersWithStatus);
+      } else if (data.data && Array.isArray(data.data)) {
+        // Eski API formatı desteği
+        const usersWithStatus = data.data.map((user: any) => ({
+          ...user,
+          durum: user.durum || 'AKTIF' // Varsayılan olarak AKTIF
+        }));
+        
+        setUsers(usersWithStatus);
+      } else {
+        toast.error("API'den beklenen formatta veri alınamadı");
+        setUsers([]);
       }
-      
-      let data;
-      try {
-        data = await response.json();
-      } catch (e) {
-        console.error("API yanıtı JSON olarak ayrıştırılamadı:", e);
-        throw new Error("Sunucu yanıtı geçerli bir JSON değil.");
-      }
-      
-      console.log("Alınan kullanıcı verileri:", data);
-      
-      let userList = [];
-      if (data.kullanicilar) {
-        userList = data.kullanicilar;
-      } else if (data.data) {
-        userList = data.data;
-      } else if (Array.isArray(data)) {
-        userList = data;
-      }
-      
-      // Her kullanıcıya bir durum ata
-      const enrichedUsers = userList.map((user: User) => ({
-        ...user,
-        durum: (user as any).durum || "AKTIF"
-      }));
-      
-      setUsers(enrichedUsers);
-    } catch (error: any) {
+    } catch (error) {
       console.error("Kullanıcılar yüklenirken hata:", error);
-      toast.error(`Kullanıcılar yüklenirken hata oluştu: ${error.message}`);
+      toast.error("Kullanıcılar yüklenirken bir hata oluştu");
+      setUsers([]);
     } finally {
       setLoading(false);
     }

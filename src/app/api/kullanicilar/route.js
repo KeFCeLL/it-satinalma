@@ -1,99 +1,108 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { withAuth, withRole } from '@/app/api/middleware';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 
-// Mock kullanıcı verileri - geliştirme modu için
+// Kullanıcı listesi için varsayılan mocklar
 const mockKullanicilar = [
   {
     id: "mock-user-1",
-    email: "admin@example.com",
-    ad: "Admin",
-    soyad: "Kullanıcı",
-    rol: "ADMIN",
+    ad: "Ali",
+    soyad: "Yılmaz",
+    email: "ali.yilmaz@example.com",
     departmanId: "mock-dep-1",
-    departman: {
-      id: "mock-dep-1",
-      ad: "IT Departmanı"
-    },
+    role: "ADMIN",
+    status: "AKTIF",
     createdAt: new Date(),
     updatedAt: new Date()
   },
   {
     id: "mock-user-2",
-    email: "satin.alma@example.com",
-    ad: "Satın",
-    soyad: "Alma",
-    rol: "SATIN_ALMA",
+    ad: "Ayşe",
+    soyad: "Demir",
+    email: "ayse.demir@example.com",
     departmanId: "mock-dep-2",
-    departman: {
-      id: "mock-dep-2",
-      ad: "Satın Alma Departmanı"
-    },
+    role: "USER",
+    status: "AKTIF",
     createdAt: new Date(),
     updatedAt: new Date()
   },
   {
     id: "mock-user-3",
-    email: "finans@example.com",
-    ad: "Finans",
-    soyad: "Sorumlusu",
-    rol: "FINANS",
+    ad: "Mehmet",
+    soyad: "Kaya",
+    email: "mehmet.kaya@example.com",
     departmanId: "mock-dep-3",
-    departman: {
-      id: "mock-dep-3",
-      ad: "Finans Departmanı"
-    },
+    role: "USER",
+    status: "PASIF",
     createdAt: new Date(),
     updatedAt: new Date()
   },
   {
     id: "mock-user-4",
-    email: "talep@example.com",
-    ad: "Talep",
-    soyad: "Eden",
-    rol: "TALEP",
+    ad: "Zeynep",
+    soyad: "Çelik",
+    email: "zeynep.celik@example.com",
     departmanId: "mock-dep-4",
-    departman: {
-      id: "mock-dep-4",
-      ad: "Pazarlama Departmanı"
-    },
+    role: "MANAGER",
+    status: "AKTIF",
     createdAt: new Date(),
     updatedAt: new Date()
   },
   {
     id: "mock-user-5",
-    email: "onay@example.com",
-    ad: "Onay",
-    soyad: "Veren",
-    rol: "ONAY",
+    ad: "Ahmet",
+    soyad: "Şahin",
+    email: "ahmet.sahin@example.com",
     departmanId: "mock-dep-5",
-    departman: {
-      id: "mock-dep-5",
-      ad: "Yönetim Departmanı"
-    },
+    role: "USER",
+    status: "AKTIF",
     createdAt: new Date(),
     updatedAt: new Date()
   }
 ];
 
+// Loglama işlevi
+function logInfo(message, data = null) {
+  const logMsg = `🔵 [API/Kullanicilar] ${message}`;
+  if (data) {
+    console.log(logMsg, data);
+  } else {
+    console.log(logMsg);
+  }
+}
+
+function logError(message, error = null) {
+  const logMsg = `🔴 [API/Kullanicilar] ${message}`;
+  if (error) {
+    console.error(logMsg, error);
+  } else {
+    console.error(logMsg);
+  }
+}
+
 // Geliştirme modu kontrolü
 const IS_DEV_MODE = process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEV_API === 'true' || process.env.DB_BYPASS === 'true';
 
-// GET - Kullanıcıları getir
+// Kullanıcıları getir
 async function getKullanicilarHandler(request) {
   try {
     // URL parametrelerini al
     const { searchParams } = new URL(request.url);
-    const sayfa = Number(searchParams.get('sayfa')) || 1;
-    const sayfaBasi = Number(searchParams.get('sayfaBasi')) || 10;
+    const hepsi = searchParams.get('hepsi') === 'true';
+    const sayfa = parseInt(searchParams.get('sayfa') || '1');
+    const sayfaBasi = parseInt(searchParams.get('sayfaBasi') || '10');
     const arama = searchParams.get('arama') || '';
-    const rol = searchParams.get('rol');
     const departmanId = searchParams.get('departmanId');
+    const role = searchParams.get('role');
+    const status = searchParams.get('status');
+    const _nocache = searchParams.get('_nocache'); // Önbelleği atlamak için
+    
+    logInfo(`Kullanıcılar getiriliyor:`, { hepsi, sayfa, sayfaBasi, arama, departmanId, role, status, _nocache });
     
     // Geliştirme modu ise mock veri dön
     if (IS_DEV_MODE) {
-      console.log('🔧 Geliştirme modu: Mock kullanıcı verileri döndürülüyor');
+      logInfo('🔧 Geliştirme modu: Mock kullanıcı verileri döndürülüyor');
       
       // Filtreleme
       let filteredKullanicilar = [...mockKullanicilar];
@@ -108,14 +117,33 @@ async function getKullanicilarHandler(request) {
         );
       }
       
-      // Rol filtresi
-      if (rol) {
-        filteredKullanicilar = filteredKullanicilar.filter(user => user.rol === rol);
-      }
-      
       // Departman filtresi
       if (departmanId) {
-        filteredKullanicilar = filteredKullanicilar.filter(user => user.departmanId === departmanId);
+        filteredKullanicilar = filteredKullanicilar.filter(user => 
+          user.departmanId === departmanId
+        );
+      }
+      
+      // Rol filtresi
+      if (role) {
+        filteredKullanicilar = filteredKullanicilar.filter(user => 
+          user.role === role
+        );
+      }
+      
+      // Durum filtresi
+      if (status) {
+        filteredKullanicilar = filteredKullanicilar.filter(user => 
+          user.status === status
+        );
+      }
+      
+      // Tümünü getir
+      if (hepsi) {
+        return NextResponse.json({
+          success: true,
+          kullanicilar: filteredKullanicilar,
+        });
       }
       
       // Toplam sayı
@@ -129,277 +157,376 @@ async function getKullanicilarHandler(request) {
       
       return NextResponse.json({
         success: true,
-        data: paginatedKullanicilar,
+        kullanicilar: paginatedKullanicilar,
         meta: {
           toplam,
           sayfaBasi,
           mevcutSayfa: sayfa,
-          sonSayfa: Math.ceil(toplam / sayfaBasi),
+          toplamSayfa: Math.ceil(toplam / sayfaBasi),
         }
       });
     }
     
-    // Skip ve take değerleri
-    const skip = (sayfa - 1) * sayfaBasi;
-    
-    // Filtre koşulları
-    let where = {};
-    
-    // Arama filtresi
-    if (arama) {
-      where.OR = [
-        { ad: { contains: arama, mode: 'insensitive' } },
-        { soyad: { contains: arama, mode: 'insensitive' } },
-        { email: { contains: arama, mode: 'insensitive' } },
-      ];
-    }
-    
-    // Rol filtresi
-    if (rol) {
-      where.rol = rol;
-    }
-    
-    // Departman filtresi
-    if (departmanId) {
-      where.departmanId = departmanId;
-    }
-    
+    logInfo(`Kullanıcılar API çağrısı - Parametreler:`, { hepsi, sayfa, sayfaBasi, arama, departmanId, role, status });
+
     try {
+      // İlk olarak prisma'nın bağlı olup olmadığını kontrol et
+      try {
+        await prisma.$queryRaw`SELECT 1`;
+        logInfo("Veritabanı bağlantısı aktif");
+      } catch (connError) {
+        logError("Veritabanı bağlantı kontrolü başarısız", connError);
+        throw new Error(`Veritabanı bağlantısında sorun: ${connError.message}`);
+      }
+      
       // Kullanıcıları getir
-      const [kullanicilar, toplam] = await Promise.all([
-        prisma.kullanici.findMany({
+      let kullanicilar;
+      let where = {};
+      
+      // Arama filtresi
+      if (arama) {
+        where.OR = [
+          { ad: { contains: arama, mode: 'insensitive' } },
+          { soyad: { contains: arama, mode: 'insensitive' } },
+          { email: { contains: arama, mode: 'insensitive' } },
+        ];
+      }
+      
+      // Departman filtresi
+      if (departmanId) {
+        where.departmanId = departmanId;
+      }
+      
+      // Rol filtresi
+      if (role) {
+        where.role = role;
+      }
+      
+      // Durum filtresi
+      if (status) {
+        where.status = status;
+      }
+      
+      logInfo(`Kullanıcılar veritabanı sorgusu başlatılıyor: ${JSON.stringify(where)}`);
+      
+      if (hepsi) {
+        // Tümünü getir
+        kullanicilar = await prisma.kullanici.findMany({
           where,
-          select: {
-            id: true,
-            email: true,
-            ad: true,
-            soyad: true,
-            rol: true,
-            departmanId: true,
-            departman: {
-              select: {
-                id: true,
-                ad: true,
-              },
-            },
-            createdAt: true,
-            updatedAt: true,
+          include: {
+            departman: true,
           },
-          skip,
-          take: sayfaBasi,
           orderBy: {
-            createdAt: 'desc',
+            ad: 'asc',
           },
-        }),
-        prisma.kullanici.count({ where }),
-      ]);
-      
-      // Sayfalama meta verileri
-      const meta = {
-        toplam,
-        sayfaBasi,
-        mevcutSayfa: sayfa,
-        sonSayfa: Math.ceil(toplam / sayfaBasi),
-      };
-      
+        });
+      } else {
+        // Sayfalama ile getir
+        kullanicilar = await prisma.kullanici.findMany({
+          where,
+          skip: (sayfa - 1) * sayfaBasi,
+          take: sayfaBasi,
+          include: {
+            departman: true,
+          },
+          orderBy: {
+            ad: 'asc',
+          },
+        });
+      }
+
+      // Hassas verileri temizle
+      kullanicilar = kullanicilar.map(user => {
+        const { password, ...userWithoutPassword } = user;
+        return userWithoutPassword;
+      });
+
+      logInfo(`Kullanıcılar API - başarıyla yüklendi, sonuç sayısı:`, kullanicilar.length);
+
       return NextResponse.json({
         success: true,
-        data: kullanicilar,
-        meta,
-      }, {
+        kullanicilar: kullanicilar,
+      }, { 
         headers: {
-          'Cache-Control': 'no-store, max-age=0',
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+          'Surrogate-Control': 'no-store',
           'Content-Type': 'application/json'
         }
       });
     } catch (dbError) {
-      console.error('Veritabanı hatası, mock veriye dönülüyor:', dbError);
+      logError('Veritabanı hatası:', dbError);
+      
+      // Hata içeriyor mu kontrol et
+      if (dbError.code) {
+        logError(`Veritabanı hata kodu: ${dbError.code}`);
+      }
+      
+      if (dbError.meta) {
+        logError(`Veritabanı hata meta:`, dbError.meta);
+      }
+      
+      // Bağlantı hatası mı kontrol et
+      if (
+        dbError.message.includes('connection') || 
+        dbError.message.includes('network') ||
+        dbError.message.includes('timeout') ||
+        dbError.code === 'P1001' || 
+        dbError.code === 'P1002'
+      ) {
+        logError('Kritik veritabanı bağlantı hatası');
+        
+        return NextResponse.json(
+          { success: false, error: 'Veritabanı bağlantı hatası', message: dbError.message, code: dbError.code },
+          { status: 503 } // Service Unavailable
+        );
+      }
+      
+      // Yetki hatası mı kontrol et
+      if (dbError.code === 'P1010' || dbError.code === 'P1011') {
+        logError('Veritabanı yetkilendirme hatası');
+        
+        return NextResponse.json(
+          { success: false, error: 'Veritabanı yetkilendirme hatası', message: dbError.message },
+          { status: 403 } // Forbidden
+        );
+      }
       
       // Veritabanı hatası durumunda mock veri dön
+      logInfo('Veritabanı hatası nedeniyle mock veriye dönülüyor');
+      
       return NextResponse.json({
         success: true,
-        data: mockKullanicilar.slice(0, sayfaBasi),
+        kullanicilar: mockKullanicilar.slice(0, sayfaBasi),
         meta: {
           toplam: mockKullanicilar.length,
           sayfaBasi,
           mevcutSayfa: 1,
-          sonSayfa: Math.ceil(mockKullanicilar.length / sayfaBasi),
-        }
+          toplamSayfa: Math.ceil(mockKullanicilar.length / sayfaBasi),
+        },
+        _devNote: 'Bu veri, veritabanı hatası nedeniyle mock veriden gelmektedir.'
       });
     }
   } catch (error) {
-    console.error('Kullanıcıları getirme hatası:', error);
+    logError('Kullanıcılar getirme hatası:', error);
     
     // Hata durumunda geliştirme modunda mock veri döndür
     if (IS_DEV_MODE) {
-      console.log('🔧 Hata alındı, geliştirme modu: Mock kullanıcı verileri döndürülüyor');
+      logInfo('🔧 Hata alındı, geliştirme modu: Mock kullanıcı verileri döndürülüyor');
       
       return NextResponse.json({
         success: true,
-        data: mockKullanicilar.slice(0, 5),
+        kullanicilar: mockKullanicilar.slice(0, 5),
         meta: {
           toplam: mockKullanicilar.length,
           sayfaBasi: 5,
           mevcutSayfa: 1,
-          sonSayfa: Math.ceil(mockKullanicilar.length / 5),
-        }
+          toplamSayfa: Math.ceil(mockKullanicilar.length / 5),
+        },
+        _devNote: 'Bu veri bir hata sonrası mock veriden gelmektedir.'
       });
     }
     
     return NextResponse.json(
-      { success: false, message: 'Kullanıcılar getirilirken bir hata oluştu', error: error.message },
-      { status: 500 }
+      { success: false, message: 'Sunucu hatası', error: error.message, stack: process.env.NODE_ENV === 'development' ? error.stack : undefined },
+      { 
+        status: 500,
+        headers: {
+          'Cache-Control': 'no-store, no-cache',
+          'Content-Type': 'application/json'
+        } 
+      }
     );
   } finally {
     if (!IS_DEV_MODE) {
       try {
         await prisma.$disconnect();
       } catch (error) {
-        console.error('Prisma bağlantı kapatma hatası:', error);
+        logError('Prisma bağlantı kapatma hatası:', error);
       }
     }
   }
 }
 
-// POST - Yeni kullanıcı oluştur
+// Yeni kullanıcı oluştur
 async function createKullaniciHandler(request) {
   try {
-    const { email, ad, soyad, sifre, rol, departmanId } = await request.json();
+    // Yeni kullanıcı verilerini al
+    const body = await request.json();
     
     // Gerekli alanları kontrol et
-    if (!email || !ad || !soyad || !sifre || !rol) {
+    if (!body.ad || !body.soyad || !body.email || !body.departmanId) {
       return NextResponse.json(
-        { success: false, message: 'Email, ad, soyad, şifre ve rol alanları zorunludur' },
+        { success: false, error: 'Gerekli alanlar eksik' },
         { status: 400 }
       );
     }
     
+    logInfo(`Yeni kullanıcı oluşturma isteği:`, {
+      ad: body.ad,
+      soyad: body.soyad,
+      email: body.email,
+      departmanId: body.departmanId,
+      role: body.role || 'USER'
+    });
+    
     // Geliştirme modu ise mock işlem yap
     if (IS_DEV_MODE) {
-      console.log('🔧 Geliştirme modu: Mock kullanıcı oluşturuluyor');
+      logInfo('🔧 Geliştirme modu: Mock kullanıcı oluşturuluyor');
       
       // Yeni kullanıcı objesi
       const yeniKullanici = {
         id: `mock-user-${Date.now()}`,
-        email,
-        ad,
-        soyad,
-        rol,
-        departmanId: departmanId || null,
-        departman: departmanId ? {
-          id: departmanId,
-          ad: "Mock Departman"
-        } : null,
+        ad: body.ad,
+        soyad: body.soyad,
+        email: body.email,
+        departmanId: body.departmanId,
+        role: body.role || 'USER',
+        status: body.status || 'AKTIF',
         createdAt: new Date(),
         updatedAt: new Date()
       };
       
-      // Mock listeye ekle
-      mockKullanicilar.unshift(yeniKullanici);
-      
       return NextResponse.json({
         success: true,
-        user: yeniKullanici
-      });
+        kullanici: yeniKullanici
+      }, { status: 201 });
     }
     
     try {
-      // Kullanıcıyı kontrol et - aynı email ile kayıtlı kullanıcı var mı?
+      // İlk olarak prisma'nın bağlı olup olmadığını kontrol et
+      try {
+        await prisma.$queryRaw`SELECT 1`;
+        logInfo("Veritabanı bağlantısı aktif");
+      } catch (connError) {
+        logError("Veritabanı bağlantı kontrolü başarısız", connError);
+        throw new Error(`Veritabanı bağlantısında sorun: ${connError.message}`);
+      }
+      
+      // Aynı email ile kullanıcı var mı kontrol et
       const existingUser = await prisma.kullanici.findUnique({
-        where: { email },
+        where: {
+          email: body.email
+        }
       });
       
       if (existingUser) {
+        logInfo(`Kullanıcı zaten mevcut: ${body.email}`);
+        
         return NextResponse.json(
-          { success: false, message: 'Bu email adresi ile kayıtlı bir kullanıcı zaten var' },
-          { status: 400 }
+          { success: false, error: 'Bu email adresi ile bir kullanıcı zaten var' },
+          { status: 409 }
         );
       }
       
-      // Şifreyi hashle
-      const hashedSifre = await bcrypt.hash(sifre, 10);
+      // Şifre hash'le
+      let hashedPassword = null;
+      if (body.password) {
+        hashedPassword = await bcrypt.hash(body.password, 10);
+      }
       
       // Yeni kullanıcı oluştur
-      const kullanici = await prisma.kullanici.create({
+      const yeniKullanici = await prisma.kullanici.create({
         data: {
-          email,
-          ad,
-          soyad,
-          sifre: hashedSifre,
-          rol,
-          departmanId,
-        },
-        select: {
-          id: true,
-          email: true,
-          ad: true,
-          soyad: true,
-          rol: true,
-          departmanId: true,
-          departman: {
-            select: {
-              id: true,
-              ad: true,
-            },
-          },
-        },
+          ad: body.ad,
+          soyad: body.soyad,
+          email: body.email,
+          password: hashedPassword,
+          departmanId: body.departmanId,
+          role: body.role || 'USER',
+          status: body.status || 'AKTIF'
+        }
       });
       
+      // Şifreyi yanıttan çıkar
+      const { password, ...kullaniciWithoutPassword } = yeniKullanici;
+      
+      logInfo(`Yeni kullanıcı başarıyla oluşturuldu: ${yeniKullanici.id}`);
+
       return NextResponse.json({
         success: true,
-        kullanici,
-      }, {
+        kullanici: kullaniciWithoutPassword
+      }, { 
+        status: 201,
         headers: {
-          'Cache-Control': 'no-store, max-age=0',
+          'Cache-Control': 'no-store, no-cache',
           'Content-Type': 'application/json'
         }
       });
     } catch (dbError) {
-      console.error('Veritabanı hatası, mock veriye dönülüyor:', dbError);
+      logError('Veritabanı hatası:', dbError);
+      
+      // Hata detaylarını kontrol et
+      if (dbError.code) {
+        logError(`Veritabanı hata kodu: ${dbError.code}`);
+      }
+      
+      if (dbError.meta) {
+        logError(`Veritabanı hata meta:`, dbError.meta);
+      }
+      
+      // Foreign key hatası mı kontrol et
+      if (dbError.code === 'P2003') {
+        return NextResponse.json(
+          { success: false, error: 'Belirtilen departman bulunamadı', message: dbError.message },
+          { status: 400 }
+        );
+      }
+      
+      // Unique constraint hatası mı kontrol et
+      if (dbError.code === 'P2002' && dbError.meta?.target?.includes('email')) {
+        return NextResponse.json(
+          { success: false, error: 'Bu email adresi ile bir kullanıcı zaten var', message: dbError.message },
+          { status: 409 }
+        );
+      }
       
       // Mock kullanıcı oluştur
-      const mockKullanici = {
-        id: `mock-error-${Date.now()}`,
-        email,
-        ad,
-        soyad,
-        rol,
-        departmanId: departmanId || null,
-        departman: departmanId ? { id: departmanId, ad: "Mock Departman" } : null,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
+      logInfo('Veritabanı hatası nedeniyle mock yanıt dönülüyor');
       
       return NextResponse.json({
         success: true,
-        user: mockKullanici
-      });
+        kullanici: {
+          id: `mock-error-${Date.now()}`,
+          ad: body.ad,
+          soyad: body.soyad,
+          email: body.email,
+          departmanId: body.departmanId,
+          role: body.role || 'USER',
+          status: body.status || 'AKTIF',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          _devNote: 'Bu veri, veritabanı hatası nedeniyle mock veriden gelmektedir.'
+        }
+      }, { status: 201 });
     }
   } catch (error) {
-    console.error('Kullanıcı oluşturma hatası:', error);
+    logError('Kullanıcı oluşturma hatası:', error);
     
     // Hata durumunda geliştirme modunda mock yanıt döndür
     if (IS_DEV_MODE) {
-      console.log('🔧 Hata alındı, geliştirme modu: Mock kullanıcı oluşturma yanıtı döndürülüyor');
+      logInfo('🔧 Hata alındı, geliştirme modu: Mock kullanıcı oluşturma yanıtı döndürülüyor');
       
       return NextResponse.json({
         success: true,
-        user: {
+        kullanici: {
           id: `mock-error-${Date.now()}`,
-          email: request.body?.email || "hata@example.com",
-          ad: request.body?.ad || "Hata",
-          soyad: request.body?.soyad || "Kullanıcı",
-          rol: request.body?.rol || "TALEP",
-          departmanId: null,
-          departman: null,
+          ad: 'Hata',
+          soyad: 'Kullanıcı',
+          email: 'hata@example.com',
+          departmanId: 'mock-dep-1',
+          role: 'USER',
+          status: 'AKTIF',
           createdAt: new Date(),
-          updatedAt: new Date()
+          updatedAt: new Date(),
+          _devNote: 'Bu veri bir hata sonrası mock veriden gelmektedir.'
         }
-      });
+      }, { status: 201 });
     }
     
     return NextResponse.json(
-      { success: false, message: 'Kullanıcı oluşturulurken bir hata oluştu', error: error.message },
+      { success: false, message: 'Sunucu hatası', error: error.message, stack: process.env.NODE_ENV === 'development' ? error.stack : undefined },
       { status: 500 }
     );
   } finally {
@@ -407,12 +534,12 @@ async function createKullaniciHandler(request) {
       try {
         await prisma.$disconnect();
       } catch (error) {
-        console.error('Prisma bağlantı kapatma hatası:', error);
+        logError('Prisma bağlantı kapatma hatası:', error);
       }
     }
   }
 }
 
-// Export handlers (GET tüm kullanıcıları getirir, POST yeni kullanıcı oluşturur)
+// Export GET ve POST metodları
 export const GET = withAuth(getKullanicilarHandler);
-export const POST = withAuth(createKullaniciHandler); 
+export const POST = withAuth(withRole(createKullaniciHandler, ['ADMIN'])); 

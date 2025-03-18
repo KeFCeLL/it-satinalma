@@ -41,6 +41,25 @@ const mockDepartmanlar = [
   }
 ];
 
+// Loglama işlevi
+function logInfo(message, data = null) {
+  const logMsg = `🔵 [API/Departmanlar] ${message}`;
+  if (data) {
+    console.log(logMsg, data);
+  } else {
+    console.log(logMsg);
+  }
+}
+
+function logError(message, error = null) {
+  const logMsg = `🔴 [API/Departmanlar] ${message}`;
+  if (error) {
+    console.error(logMsg, error);
+  } else {
+    console.error(logMsg);
+  }
+}
+
 // Geliştirme modu kontrolü
 const IS_DEV_MODE = process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEV_API === 'true' || process.env.DB_BYPASS === 'true';
 
@@ -53,10 +72,13 @@ async function getDepartmanlarHandler(request) {
     const sayfa = parseInt(searchParams.get('sayfa') || '1');
     const sayfaBasi = parseInt(searchParams.get('sayfaBasi') || '10');
     const arama = searchParams.get('arama') || '';
+    const _nocache = searchParams.get('_nocache'); // Önbelleği atlamak için
+    
+    logInfo(`Departmanlar getiriliyor: ${JSON.stringify({ hepsi, sayfa, sayfaBasi, arama, _nocache })}`);
     
     // Geliştirme modu ise mock veri dön
     if (IS_DEV_MODE) {
-      console.log('🔧 Geliştirme modu: Mock departman verileri döndürülüyor');
+      logInfo('🔧 Geliştirme modu: Mock departman verileri döndürülüyor');
       
       // Filtreleme
       let filteredDepartmanlar = [...mockDepartmanlar];
@@ -99,15 +121,38 @@ async function getDepartmanlarHandler(request) {
       });
     }
     
-    console.log("Departmanlar API çağrısı - Parametreler:", { hepsi, sayfa, sayfaBasi, arama });
+    logInfo(`Departmanlar API çağrısı - Parametreler:`, { hepsi, sayfa, sayfaBasi, arama });
 
     try {
+      // İlk olarak prisma'nın bağlı olup olmadığını kontrol et
+      try {
+        await prisma.$queryRaw`SELECT 1`;
+        logInfo("Veritabanı bağlantısı aktif");
+      } catch (connError) {
+        logError("Veritabanı bağlantı kontrolü başarısız", connError);
+        throw new Error(`Veritabanı bağlantısında sorun: ${connError.message}`);
+      }
+      
       // Departmanları getir
       let departmanlar;
+      let where = {};
+      
+      // Arama filtresi
+      if (arama) {
+        where = {
+          OR: [
+            { ad: { contains: arama, mode: 'insensitive' } },
+            { aciklama: { contains: arama, mode: 'insensitive' } },
+          ],
+        };
+      }
+      
+      logInfo(`Departmanlar veritabanı sorgusu başlatılıyor: ${JSON.stringify(where)}`);
       
       if (hepsi) {
         // Tümünü getir
         departmanlar = await prisma.departman.findMany({
+          where,
           orderBy: {
             ad: 'asc',
           },
@@ -115,12 +160,7 @@ async function getDepartmanlarHandler(request) {
       } else {
         // Sayfalama ile getir
         departmanlar = await prisma.departman.findMany({
-          where: arama ? {
-            OR: [
-              { ad: { contains: arama } },
-              { aciklama: { contains: arama } },
-            ],
-          } : undefined,
+          where,
           skip: (sayfa - 1) * sayfaBasi,
           take: sayfaBasi,
           orderBy: {
@@ -129,21 +169,61 @@ async function getDepartmanlarHandler(request) {
         });
       }
 
-      console.log("Departmanlar API - başarıyla yüklendi, sonuç:", departmanlar.length);
+      logInfo(`Departmanlar API - başarıyla yüklendi, sonuç sayısı:`, departmanlar.length);
 
       return NextResponse.json({
         success: true,
         departmanlar: departmanlar,
       }, { 
         headers: {
-          'Cache-Control': 'no-store, max-age=0',
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+          'Surrogate-Control': 'no-store',
           'Content-Type': 'application/json'
-        } 
+        }
       });
     } catch (dbError) {
-      console.error('Veritabanı hatası, mock veriye dönülüyor:', dbError);
+      logError('Veritabanı hatası:', dbError);
+      
+      // Hata içeriyor mu kontrol et
+      if (dbError.code) {
+        logError(`Veritabanı hata kodu: ${dbError.code}`);
+      }
+      
+      if (dbError.meta) {
+        logError(`Veritabanı hata meta:`, dbError.meta);
+      }
+      
+      // Bağlantı hatası mı kontrol et
+      if (
+        dbError.message.includes('connection') || 
+        dbError.message.includes('network') ||
+        dbError.message.includes('timeout') ||
+        dbError.code === 'P1001' || 
+        dbError.code === 'P1002'
+      ) {
+        logError('Kritik veritabanı bağlantı hatası');
+        
+        return NextResponse.json(
+          { success: false, error: 'Veritabanı bağlantı hatası', message: dbError.message, code: dbError.code },
+          { status: 503 } // Service Unavailable
+        );
+      }
+      
+      // Yetki hatası mı kontrol et
+      if (dbError.code === 'P1010' || dbError.code === 'P1011') {
+        logError('Veritabanı yetkilendirme hatası');
+        
+        return NextResponse.json(
+          { success: false, error: 'Veritabanı yetkilendirme hatası', message: dbError.message },
+          { status: 403 } // Forbidden
+        );
+      }
       
       // Veritabanı hatası durumunda mock veri dön
+      logInfo('Veritabanı hatası nedeniyle mock veriye dönülüyor');
+      
       return NextResponse.json({
         success: true,
         departmanlar: mockDepartmanlar.slice(0, sayfaBasi),
@@ -152,15 +232,16 @@ async function getDepartmanlarHandler(request) {
           sayfaBasi,
           mevcutSayfa: 1,
           toplamSayfa: Math.ceil(mockDepartmanlar.length / sayfaBasi),
-        }
+        },
+        _devNote: 'Bu veri, veritabanı hatası nedeniyle mock veriden gelmektedir.'
       });
     }
   } catch (error) {
-    console.error('Departmanlar getirme hatası:', error);
+    logError('Departmanlar getirme hatası:', error);
     
     // Hata durumunda geliştirme modunda mock veri döndür
     if (IS_DEV_MODE) {
-      console.log('🔧 Hata alındı, geliştirme modu: Mock departman verileri döndürülüyor');
+      logInfo('🔧 Hata alındı, geliştirme modu: Mock departman verileri döndürülüyor');
       
       return NextResponse.json({
         success: true,
@@ -170,20 +251,27 @@ async function getDepartmanlarHandler(request) {
           sayfaBasi: 5,
           mevcutSayfa: 1,
           toplamSayfa: Math.ceil(mockDepartmanlar.length / 5),
-        }
+        },
+        _devNote: 'Bu veri bir hata sonrası mock veriden gelmektedir.'
       });
     }
     
     return NextResponse.json(
-      { success: false, message: 'Sunucu hatası', error: error.message },
-      { status: 500 }
+      { success: false, message: 'Sunucu hatası', error: error.message, stack: process.env.NODE_ENV === 'development' ? error.stack : undefined },
+      { 
+        status: 500,
+        headers: {
+          'Cache-Control': 'no-store, no-cache',
+          'Content-Type': 'application/json'
+        } 
+      }
     );
   } finally {
     if (!IS_DEV_MODE) {
       try {
         await prisma.$disconnect();
       } catch (error) {
-        console.error('Prisma bağlantı kapatma hatası:', error);
+        logError('Prisma bağlantı kapatma hatası:', error);
       }
     }
   }
@@ -205,7 +293,7 @@ async function createDepartmanHandler(request) {
     
     // Geliştirme modu ise mock işlem yap
     if (IS_DEV_MODE) {
-      console.log('🔧 Geliştirme modu: Mock departman oluşturuluyor');
+      logInfo('🔧 Geliştirme modu: Mock departman oluşturuluyor');
       
       // Yeni departman objesi
       const yeniDepartman = {
@@ -251,7 +339,7 @@ async function createDepartmanHandler(request) {
         departman,
       });
     } catch (dbError) {
-      console.error('Veritabanı hatası, mock veriye dönülüyor:', dbError);
+      logError('Veritabanı hatası, mock veriye dönülüyor:', dbError);
       
       // Mock departman oluştur
       const mockDepartman = {
@@ -268,11 +356,11 @@ async function createDepartmanHandler(request) {
       });
     }
   } catch (error) {
-    console.error('Departman oluşturma hatası:', error);
+    logError('Departman oluşturma hatası:', error);
     
     // Hata durumunda geliştirme modunda mock yanıt döndür
     if (IS_DEV_MODE) {
-      console.log('🔧 Hata alındı, geliştirme modu: Mock departman oluşturma yanıtı döndürülüyor');
+      logInfo('�� Hata alındı, geliştirme modu: Mock departman oluşturma yanıtı döndürülüyor');
       
       return NextResponse.json({
         success: true,
@@ -295,7 +383,7 @@ async function createDepartmanHandler(request) {
       try {
         await prisma.$disconnect();
       } catch (error) {
-        console.error('Prisma bağlantı kapatma hatası:', error);
+        logError('Prisma bağlantı kapatma hatası:', error);
       }
     }
   }
