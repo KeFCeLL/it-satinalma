@@ -84,6 +84,14 @@ function logError(message, error = null) {
 // Geliştirme modu kontrolü
 const IS_DEV_MODE = process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEV_API === 'true' || process.env.DB_BYPASS === 'true';
 
+// Ortam değişkenlerini logla
+logInfo('Kullanıcılar API yükleniyor', {
+  NODE_ENV: process.env.NODE_ENV,
+  NEXT_PUBLIC_DEV_API: process.env.NEXT_PUBLIC_DEV_API,
+  DB_BYPASS: process.env.DB_BYPASS,
+  IS_DEV_MODE
+});
+
 // Kullanıcıları getir
 async function getKullanicilarHandler(request) {
   try {
@@ -102,7 +110,12 @@ async function getKullanicilarHandler(request) {
     
     // Geliştirme modu ise mock veri dön
     if (IS_DEV_MODE) {
-      logInfo('🔧 Geliştirme modu: Mock kullanıcı verileri döndürülüyor');
+      logInfo('🔧 Geliştirme modu aktif: IS_DEV_MODE=true', {
+        NODE_ENV: process.env.NODE_ENV,
+        NEXT_PUBLIC_DEV_API: process.env.NEXT_PUBLIC_DEV_API,
+        DB_BYPASS: process.env.DB_BYPASS
+      });
+      logInfo('Mock kullanıcı verileri döndürülüyor');
       
       // Filtreleme
       let filteredKullanicilar = [...mockKullanicilar];

@@ -72,38 +72,46 @@ export function KullaniciEkle({ onSuccess }: KullaniciEkleProps) {
   }, []);
 
   // Departmanları getir
-  const fetchDepartmanlar = async () => {
+  async function fetchDepartmanlar() {
     setLoadingDepartments(true);
-    
+
     try {
-      console.log('🔄 Departmanlar getiriliyor...');
+      console.log('🔄 [KullaniciEkle] Departmanlar yükleniyor...');
       
-      // Önce LocalStorage'dan yüklemeyi dene (hızlı erişim için)
-      const savedDepartments = localStorage.getItem('it_satinalma_departments');
-      if (savedDepartments) {
+      // Yerel depolamadaki departmanları kontrol et
+      const localStorageDepartments = localStorage.getItem('it_satinalma_departments');
+      if (localStorageDepartments) {
         try {
-          const parsedDepts = JSON.parse(savedDepartments);
+          const parsedDepts = JSON.parse(localStorageDepartments);
+          console.log('📦 [KullaniciEkle] LocalStorage\'dan departmanlar yüklendi:', parsedDepts.length);
+          
           if (Array.isArray(parsedDepts) && parsedDepts.length > 0) {
-            console.log('📦 Departmanlar localStorage\'dan yüklendi:', parsedDepts.length);
             setDepartmanlar(parsedDepts);
-            setLoadingDepartments(false);
-            // Yine de arka planda güncel veriyi API'den çekelim
+            // API'den güncel veriyi getirmeye devam et
           }
-        } catch (e) {
-          console.error('LocalStorage parse hatası:', e);
+        } catch (error) {
+          console.error('LocalStorage parse hatası:', error);
         }
       }
       
-      // API'den departmanları getir, önbelleği atlayarak
+      // API isteği
       const response = await fetchWithoutCache('/api/departmanlar?hepsi=true');
-      console.log('📊 API yanıtı:', response.status, response.statusText);
-      
-      if (!response.ok) {
-        throw new Error(`API hatası: ${response.status} ${response.statusText}`);
-      }
+      console.log('📊 [KullaniciEkle] Departmanlar API yanıtı:', response.status, response.statusText);
       
       const data = await response.json();
-      console.log('📋 Departmanlar:', data);
+      console.log('📋 [KullaniciEkle] Departmanlar veri:', data);
+      
+      // Debug için API yanıtını sakla
+      try {
+        localStorage.setItem('debug_last_departments_response', JSON.stringify({
+          timestamp: new Date().toISOString(),
+          status: response.status,
+          statusText: response.statusText,
+          data
+        }));
+      } catch (error) {
+        console.error('Debug veri kaydetme hatası:', error);
+      }
       
       if (data.success && data.departmanlar && Array.isArray(data.departmanlar)) {
         setDepartmanlar(data.departmanlar);
@@ -125,7 +133,7 @@ export function KullaniciEkle({ onSuccess }: KullaniciEkleProps) {
     } finally {
       setLoadingDepartments(false);
     }
-  };
+  }
 
   // Form gönderildiğinde
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
