@@ -1,17 +1,14 @@
 {
-  "crons": [
-    {
-      "path": "/api/cron-jobs/connection-cleanup",
-      "schedule": "0 */6 * * *"
-    }
-  ],
+  "crons": [],
   "env": {
-    "NEXT_PUBLIC_DEV_API": "false",
-    "DB_BYPASS": "false",
+    "NEXT_PUBLIC_DEV_API": "true",
+    "DB_BYPASS": "true",
+    "NEXT_PUBLIC_MOCK_DATA": "true",
     "POSTGRES_PRISMA_URL": "postgres://neondb_owner:npg_Q8KRAZHn6Pfa@ep-dawn-wave-a5gz999a-pooler.us-east-2.aws.neon.tech/neondb?connect_timeout=15&sslmode=require",
     "POSTGRES_URL": "postgres://neondb_owner:npg_Q8KRAZHn6Pfa@ep-dawn-wave-a5gz999a-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require",
     "POSTGRES_URL_NON_POOLING": "postgres://neondb_owner:npg_Q8KRAZHn6Pfa@ep-dawn-wave-a5gz999a.us-east-2.aws.neon.tech/neondb?sslmode=require",
     "NODE_ENV": "production"
   },
-  "buildCommand": "npm run build"
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next"
 } 
