@@ -22,14 +22,18 @@ function logError(message, error = null) {
 }
 
 // Geliştirme modu kontrolü
-const IS_DEV_MODE = process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEV_API === 'true' || process.env.DB_BYPASS === 'true';
+// const IS_DEV_MODE = process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEV_API === 'true' || process.env.DB_BYPASS === 'true';
+
+// !!! GEÇİCİ ÇÖZÜM !!! - Geliştirme modunu zorla kapatıyoruz
+const IS_DEV_MODE = false; 
 
 // Ortam değişkenlerini logla
 logInfo('Middleware yükleniyor', {
   NODE_ENV: process.env.NODE_ENV,
   NEXT_PUBLIC_DEV_API: process.env.NEXT_PUBLIC_DEV_API,
   DB_BYPASS: process.env.DB_BYPASS,
-  IS_DEV_MODE
+  IS_DEV_MODE,
+  message: "Geliştirme modu zorla kapatıldı - Geçici çözüm"
 });
 
 export function withAuth(handler) {
