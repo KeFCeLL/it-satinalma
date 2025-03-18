@@ -53,6 +53,29 @@ export function KullaniciListe() {
   const fetchUsers = async () => {
     setLoading(true);
     try {
+      // Önce localStorage'dan kullanıcıları yükle (hızlı görüntüleme için)
+      const savedUsers = localStorage.getItem('it_satinalma_users');
+      if (savedUsers) {
+        try {
+          const parsedUsers = JSON.parse(savedUsers);
+          if (Array.isArray(parsedUsers) && parsedUsers.length > 0) {
+            console.log('📦 Kullanıcılar localStorage\'dan yüklendi:', parsedUsers.length);
+            
+            // Her kullanıcıya durum bilgisi ekle (eğer yoksa)
+            const usersWithStatus = parsedUsers.map((user: any) => ({
+              ...user,
+              durum: user.durum || 'AKTIF' // Varsayılan olarak AKTIF
+            }));
+            
+            setUsers(usersWithStatus);
+            setLoading(false);
+            // Arka planda API ile güncel veriyi almaya devam et
+          }
+        } catch (e) {
+          console.error('LocalStorage parse hatası:', e);
+        }
+      }
+      
       // API isteği
       const response = await fetchWithoutCache(`/api/kullanicilar?hepsi=true`);
       console.log('📊 Kullanıcılar API yanıtı:', response.status, response.statusText);
@@ -72,6 +95,10 @@ export function KullaniciListe() {
         }));
         
         setUsers(usersWithStatus);
+        
+        // LocalStorage'a kaydet
+        localStorage.setItem('it_satinalma_users', JSON.stringify(usersWithStatus));
+        console.log('✅ Kullanıcılar localStorage\'a kaydedildi');
       } else if (data.data && Array.isArray(data.data)) {
         // Eski API formatı desteği
         const usersWithStatus = data.data.map((user: any) => ({
@@ -80,14 +107,26 @@ export function KullaniciListe() {
         }));
         
         setUsers(usersWithStatus);
+        
+        // LocalStorage'a kaydet
+        localStorage.setItem('it_satinalma_users', JSON.stringify(usersWithStatus));
+        console.log('✅ Kullanıcılar localStorage\'a kaydedildi');
       } else {
         toast.error("API'den beklenen formatta veri alınamadı");
-        setUsers([]);
+        
+        // Eğer kullanıcılar zaten localStorage'dan yüklendiyse, API'den veri alamadık diye onları silmeyelim
+        if (users.length === 0) {
+          setUsers([]);
+        }
       }
     } catch (error) {
       console.error("Kullanıcılar yüklenirken hata:", error);
-      toast.error("Kullanıcılar yüklenirken bir hata oluştu");
-      setUsers([]);
+      toast.error("Kullanıcılar yüklenirken bir hata oluştu, kaydedilmiş veriler gösteriliyor");
+      
+      // Hatada boş array set etmeyelim, localStorage'dan yüklenen veriler varsa onları kullanalım
+      if (users.length === 0) {
+        setUsers([]);
+      }
     } finally {
       setLoading(false);
     }
@@ -130,6 +169,19 @@ export function KullaniciListe() {
         throw new Error(errorData.error || `Sunucu hatası: ${response.status}`);
       }
       
+      // LocalStorage'dan da sil
+      try {
+        const savedUsers = localStorage.getItem('it_satinalma_users');
+        if (savedUsers) {
+          let users = JSON.parse(savedUsers);
+          users = users.filter((user: any) => user.id !== userToDelete.id);
+          localStorage.setItem('it_satinalma_users', JSON.stringify(users));
+          console.log('✅ Kullanıcı localStorage\'dan silindi');
+        }
+      } catch (storageError) {
+        console.error('LocalStorage silme hatası:', storageError);
+      }
+      
       toast.success(`${userToDelete.ad} ${userToDelete.soyad} kullanıcısı silindi.`);
       fetchUsers(); // Listeyi yenile
     } catch (error: any) {
@@ -158,6 +210,24 @@ export function KullaniciListe() {
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || `Sunucu hatası: ${response.status}`);
+      }
+      
+      // LocalStorage'da da güncelle
+      try {
+        const savedUsers = localStorage.getItem('it_satinalma_users');
+        if (savedUsers) {
+          let users = JSON.parse(savedUsers);
+          users = users.map((u: any) => {
+            if (u.id === user.id) {
+              return { ...u, durum: newStatus };
+            }
+            return u;
+          });
+          localStorage.setItem('it_satinalma_users', JSON.stringify(users));
+          console.log('✅ Kullanıcı durumu localStorage\'da güncellendi');
+        }
+      } catch (storageError) {
+        console.error('LocalStorage güncelleme hatası:', storageError);
       }
       
       toast.success(`${user.ad} ${user.soyad} kullanıcısı ${newStatus === "AKTIF" ? "aktif" : "pasif"} duruma getirildi.`);

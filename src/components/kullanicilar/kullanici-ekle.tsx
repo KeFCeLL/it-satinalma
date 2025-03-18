@@ -144,6 +144,8 @@ export function KullaniciEkle({ onSuccess }: KullaniciEkleProps) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+          'Pragma': 'no-cache'
         },
         body: JSON.stringify(formData),
         credentials: 'include' // Cookie bilgilerini gönder
@@ -167,6 +169,39 @@ export function KullaniciEkle({ onSuccess }: KullaniciEkleProps) {
       if (!response.ok) {
         const errorMessage = responseData.error || responseData.message || `Sunucu hatası: ${response.status} ${response.statusText}`;
         throw new Error(errorMessage);
+      }
+
+      // API yanıtından kullanıcıyı al veya form verilerinden oluştur
+      const newUser = responseData.kullanici || {
+        id: `temp-${Date.now()}`,
+        email: values.email,
+        ad: values.ad,
+        soyad: values.soyad,
+        rol: values.rol,
+        departmanId: formData.departmanId,
+        status: "AKTIF",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      
+      // Eklenen kullanıcıyı localStorage'a kaydet
+      try {
+        // Önce mevcut kullanıcıları al
+        const savedUsers = localStorage.getItem('it_satinalma_users');
+        let users = [];
+        
+        if (savedUsers) {
+          users = JSON.parse(savedUsers);
+        }
+        
+        // Yeni kullanıcıyı ekle
+        users.push(newUser);
+        
+        // LocalStorage'a kaydet
+        localStorage.setItem('it_satinalma_users', JSON.stringify(users));
+        console.log('✅ Kullanıcı localStorage\'a kaydedildi:', newUser);
+      } catch (storageError) {
+        console.error('LocalStorage kaydetme hatası:', storageError);
       }
 
       // Başarılı olduğunda bu mesajı göster
