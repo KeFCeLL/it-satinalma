@@ -113,6 +113,9 @@ export function DepartmanYonetimi() {
     setError(null);
     
     try {
+      // Geçici çözüm: Mock API modunu devre dışı bırak
+      localStorage.setItem('useMockApi', 'false');
+      
       console.log('🔄 Departmanlar getiriliyor...');
       
       // Önce localStorage'dan departmanları yükle (hızlı görüntüleme için)

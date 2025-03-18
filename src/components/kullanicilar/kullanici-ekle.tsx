@@ -76,6 +76,9 @@ export function KullaniciEkle({ onSuccess }: KullaniciEkleProps) {
     setLoadingDepartments(true);
 
     try {
+      // Geçici çözüm: Mock API modunu devre dışı bırak
+      localStorage.setItem('useMockApi', 'false');
+      
       console.log('🔄 [KullaniciEkle] Departmanlar yükleniyor...');
       
       // Yerel depolamadaki departmanları kontrol et

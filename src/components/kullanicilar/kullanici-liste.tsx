@@ -53,6 +53,9 @@ export function KullaniciListe() {
   const fetchUsers = async () => {
     setLoading(true);
     try {
+      // Geçici çözüm: Mock API modunu devre dışı bırak
+      localStorage.setItem('useMockApi', 'false');
+      
       // Önce localStorage'dan kullanıcıları yükle (hızlı görüntüleme için)
       const savedUsers = localStorage.getItem('it_satinalma_users');
       if (savedUsers) {
