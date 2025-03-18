@@ -438,27 +438,30 @@ async function createKullaniciHandler(request) {
     });
     
     // Geliştirme modu ise mock işlem yap
-    if (IS_DEV_MODE) {
-      logInfo('🔧 Geliştirme modu: Mock kullanıcı oluşturuluyor');
+    // if (IS_DEV_MODE) {
+    //   logInfo('🔧 Geliştirme modu: Mock kullanıcı oluşturuluyor');
       
-      // Yeni kullanıcı objesi
-      const yeniKullanici = {
-        id: `mock-user-${Date.now()}`,
-        ad: body.ad,
-        soyad: body.soyad,
-        email: body.email,
-        departmanId: body.departmanId,
-        role: body.role || 'USER',
-        status: body.status || 'AKTIF',
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
+    //   // Yeni kullanıcı objesi
+    //   const yeniKullanici = {
+    //     id: `mock-user-${Date.now()}`,
+    //     ad: body.ad,
+    //     soyad: body.soyad,
+    //     email: body.email,
+    //     departmanId: body.departmanId,
+    //     role: body.role || 'USER',
+    //     status: body.status || 'AKTIF',
+    //     createdAt: new Date(),
+    //     updatedAt: new Date()
+    //   };
       
-      return NextResponse.json({
-        success: true,
-        kullanici: yeniKullanici
-      }, { status: 201 });
-    }
+    //   return NextResponse.json({
+    //     success: true,
+    //     kullanici: yeniKullanici
+    //   }, { status: 201 });
+    // }
+    
+    // !!! GEÇİCİ ÇÖZÜM !!! - Geliştirme modu kontrolünü devre dışı bıraktık, gerçek veritabanı işlemi yapılacak
+    logInfo('Geliştirme modu kontrolü devre dışı bırakıldı, gerçek veritabanı işlemi yapılıyor');
     
     try {
       // İlk olarak prisma'nın bağlı olup olmadığını kontrol et

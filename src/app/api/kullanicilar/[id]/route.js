@@ -250,43 +250,46 @@ async function updateKullaniciHandler(request, { params }) {
     const { email, ad, soyad, sifre, rol, departmanId } = await request.json();
     
     // Geliştirme modu ise mock işlem yap
-    if (IS_DEV_MODE) {
-      console.log('🔧 Geliştirme modu: Mock kullanıcı güncelleniyor, ID:', id);
+    // if (IS_DEV_MODE) {
+    //   console.log('🔧 Geliştirme modu: Mock kullanıcı güncelleniyor, ID:', id);
       
-      // Mock kullanıcıyı bul
-      const kullaniciIndex = mockKullanicilar.findIndex(user => user.id === id);
+    //   // Mock kullanıcıyı bul
+    //   const kullaniciIndex = mockKullanicilar.findIndex(user => user.id === id);
       
-      // Kullanıcı bulunamadıysa
-      if (kullaniciIndex === -1) {
-        return NextResponse.json(
-          { success: false, message: 'Kullanıcı bulunamadı' },
-          { status: 404 }
-        );
-      }
+    //   // Kullanıcı bulunamadıysa
+    //   if (kullaniciIndex === -1) {
+    //     return NextResponse.json(
+    //       { success: false, message: 'Kullanıcı bulunamadı' },
+    //       { status: 404 }
+    //     );
+    //   }
       
-      // Mock kullanıcıyı güncelle
-      const guncelKullanici = {
-        ...mockKullanicilar[kullaniciIndex],
-        email: email || mockKullanicilar[kullaniciIndex].email,
-        ad: ad || mockKullanicilar[kullaniciIndex].ad,
-        soyad: soyad || mockKullanicilar[kullaniciIndex].soyad,
-        rol: rol || mockKullanicilar[kullaniciIndex].rol,
-        departmanId: departmanId || mockKullanicilar[kullaniciIndex].departmanId,
-        departman: departmanId ? {
-          id: departmanId,
-          ad: "Mock Departman"
-        } : mockKullanicilar[kullaniciIndex].departman,
-        updatedAt: new Date()
-      };
+    //   // Mock kullanıcıyı güncelle
+    //   const guncelKullanici = {
+    //     ...mockKullanicilar[kullaniciIndex],
+    //     email: email || mockKullanicilar[kullaniciIndex].email,
+    //     ad: ad || mockKullanicilar[kullaniciIndex].ad,
+    //     soyad: soyad || mockKullanicilar[kullaniciIndex].soyad,
+    //     rol: rol || mockKullanicilar[kullaniciIndex].rol,
+    //     departmanId: departmanId || mockKullanicilar[kullaniciIndex].departmanId,
+    //     departman: departmanId ? {
+    //       id: departmanId,
+    //       ad: "Mock Departman"
+    //     } : mockKullanicilar[kullaniciIndex].departman,
+    //     updatedAt: new Date()
+    //   };
       
-      // Mock listeyi güncelle
-      mockKullanicilar[kullaniciIndex] = guncelKullanici;
+    //   // Mock listeyi güncelle
+    //   mockKullanicilar[kullaniciIndex] = guncelKullanici;
       
-      return NextResponse.json({
-        success: true,
-        user: guncelKullanici
-      });
-    }
+    //   return NextResponse.json({
+    //     success: true,
+    //     user: guncelKullanici
+    //   });
+    // }
+    
+    // !!! GEÇİCİ ÇÖZÜM !!! - Geliştirme modu kontrolünü devre dışı bıraktık, gerçek veritabanı işlemi yapılıyor
+    console.log('Geliştirme modu kontrolü devre dışı bırakıldı, gerçek veritabanı işlemi yapılıyor');
     
     try {
       // Kullanıcının var olup olmadığını kontrol et
@@ -429,32 +432,35 @@ async function deleteKullaniciHandler(request, { params }) {
     const { id } = params;
     
     // Geliştirme modu ise mock işlem yap
-    if (IS_DEV_MODE) {
-      console.log('🔧 Geliştirme modu: Mock kullanıcı siliniyor, ID:', id);
+    // if (IS_DEV_MODE) {
+    //   console.log('🔧 Geliştirme modu: Mock kullanıcı siliniyor, ID:', id);
       
-      // Kullanıcının indeksini bul
-      const kullaniciIndex = mockKullanicilar.findIndex(user => user.id === id);
+    //   // Kullanıcının indeksini bul
+    //   const kullaniciIndex = mockKullanicilar.findIndex(user => user.id === id);
       
-      // Kullanıcı bulunamadıysa
-      if (kullaniciIndex === -1) {
-        return NextResponse.json(
-          { success: false, message: 'Kullanıcı bulunamadı' },
-          { status: 404 }
-        );
-      }
+    //   // Kullanıcı bulunamadıysa
+    //   if (kullaniciIndex === -1) {
+    //     return NextResponse.json(
+    //       { success: false, message: 'Kullanıcı bulunamadı' },
+    //       { status: 404 }
+    //     );
+    //   }
       
-      // Silinen kullanıcı bilgisini sakla
-      const deletedUser = { ...mockKullanicilar[kullaniciIndex] };
+    //   // Silinen kullanıcı bilgisini sakla
+    //   const deletedUser = { ...mockKullanicilar[kullaniciIndex] };
       
-      // Kullanıcıyı listeden çıkar
-      mockKullanicilar.splice(kullaniciIndex, 1);
+    //   // Kullanıcıyı listeden çıkar
+    //   mockKullanicilar.splice(kullaniciIndex, 1);
       
-      return NextResponse.json({
-        success: true,
-        message: 'Kullanıcı başarıyla silindi',
-        deletedUser
-      });
-    }
+    //   return NextResponse.json({
+    //     success: true,
+    //     message: 'Kullanıcı başarıyla silindi',
+    //     deletedUser
+    //   });
+    // }
+    
+    // !!! GEÇİCİ ÇÖZÜM !!! - Geliştirme modu kontrolünü devre dışı bıraktık, gerçek veritabanı işlemi yapılacak
+    console.log('Geliştirme modu kontrolü devre dışı bırakıldı, gerçek veritabanı işlemi yapılıyor');
     
     try {
       // Kullanıcının var olup olmadığını kontrol et
@@ -502,21 +508,8 @@ async function deleteKullaniciHandler(request, { params }) {
   } catch (error) {
     console.error('Kullanıcı silme hatası:', error);
     
-    // Hata durumunda geliştirme modunda mock yanıt döndür
-    if (IS_DEV_MODE) {
-      console.log('🔧 Hata alındı, geliştirme modu: Mock kullanıcı silme yanıtı döndürülüyor');
-      
-      return NextResponse.json({
-        success: true,
-        message: 'Kullanıcı başarıyla silindi (mock error)',
-        deletedUser: {
-          id: params?.id || "error-id",
-          email: "error@example.com",
-          ad: "Hata",
-          soyad: "Silme"
-        }
-      });
-    }
+    // !!! GEÇİCİ ÇÖZÜM !!! - Geliştirme modu kontrolünü devre dışı bıraktık, hata mesajı döndürüyoruz
+    console.log('Geliştirme modu kontrolü devre dışı bırakıldı, gerçek hata döndürülüyor');
     
     return NextResponse.json(
       { success: false, message: 'Kullanıcı silinirken bir hata oluştu', error: error.message },
