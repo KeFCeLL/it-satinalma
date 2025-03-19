@@ -224,11 +224,11 @@ export default function UrunlerPage() {
       const data = await response.json();
       console.log('Kategoriler yanıtı:', data);
       
-      if (!data || !data.success || !Array.isArray(data.data)) {
+      if (!data || !Array.isArray(data.kategoriler)) {
         throw new Error('Geçersiz API yanıtı');
       }
 
-      setKategoriler(data.data);
+      setKategoriler(data.kategoriler);
     } catch (error) {
       console.error('Kategoriler getirilirken hata:', error);
       setKategoriler([]);
