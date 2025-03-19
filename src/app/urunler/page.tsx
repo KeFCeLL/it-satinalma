@@ -160,6 +160,7 @@ export default function UrunlerPage() {
   // Ürünleri getir
   const fetchUrunler = async () => {
     try {
+      setYukleniyor(true);
       console.log('Ürünler getiriliyor...');
       const response = await fetch(
         `/api/urunler?sayfa=${sayfa}&sayfaBasina=${sayfaBasinaUrun}`
@@ -172,11 +173,11 @@ export default function UrunlerPage() {
       const data = await response.json();
       console.log('Ürünler yanıtı:', data);
       
-      if (data.success && Array.isArray(data.urunler)) {
+      if (data && data.success && Array.isArray(data.urunler)) {
         console.log('Ürünler başarıyla yüklendi:', data.urunler);
         setUrunler(data.urunler);
         setToplamUrunSayisi(typeof data.toplamUrunSayisi === 'number' ? data.toplamUrunSayisi : 0);
-      } else if (Array.isArray(data.urunler)) {
+      } else if (data && Array.isArray(data.urunler)) {
         console.log('Ürünler başarıyla yüklendi (alternatif format):', data.urunler);
         setUrunler(data.urunler);
         setToplamUrunSayisi(typeof data.toplamUrun === 'number' ? data.toplamUrun : 
@@ -351,7 +352,7 @@ export default function UrunlerPage() {
           <div className="flex justify-center items-center h-64">
             <Loader2 className="h-8 w-8 animate-spin" />
           </div>
-        ) : !Array.isArray(urunler) || urunler.length === 0 ? (
+        ) : !urunler || !Array.isArray(urunler) || urunler.length === 0 ? (
           <div className="flex justify-center items-center h-64 text-gray-500">
             Henüz ürün bulunmuyor
           </div>
@@ -369,15 +370,15 @@ export default function UrunlerPage() {
               </TableHeader>
               <TableBody>
                 {urunler.map((urun) => (
-                  <TableRow key={urun.id}>
-                    <TableCell>{urun.ad}</TableCell>
-                    <TableCell>{urun.kategori}</TableCell>
-                    <TableCell>{urun.birimFiyat.toLocaleString('tr-TR', {
+                  <TableRow key={urun?.id || 'unknown'}>
+                    <TableCell>{urun?.ad || '-'}</TableCell>
+                    <TableCell>{urun?.kategori || '-'}</TableCell>
+                    <TableCell>{urun?.birimFiyat ? urun.birimFiyat.toLocaleString('tr-TR', {
                       style: 'currency',
                       currency: 'TRY'
-                    })}</TableCell>
-                    <TableCell>{urun.birim}</TableCell>
-                    <TableCell>{urun.aciklama}</TableCell>
+                    }) : '-'}</TableCell>
+                    <TableCell>{urun?.birim || '-'}</TableCell>
+                    <TableCell>{urun?.aciklama || '-'}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -394,12 +395,12 @@ export default function UrunlerPage() {
                   Önceki
                 </Button>
                 <span className="text-sm">
-                  Sayfa {sayfa} / {toplamSayfa}
+                  Sayfa {sayfa} / {toplamSayfa || 1}
                 </span>
                 <Button
                   variant="outline"
-                  onClick={() => setSayfa(s => Math.min(toplamSayfa, s + 1))}
-                  disabled={sayfa === toplamSayfa}
+                  onClick={() => setSayfa(s => Math.min(toplamSayfa || 1, s + 1))}
+                  disabled={sayfa === toplamSayfa || toplamSayfa === 0}
                 >
                   Sonraki
                 </Button>
@@ -415,7 +416,7 @@ export default function UrunlerPage() {
         onClose={() => setKategoriSilmeModal({ isOpen: false, kategori: null, urunSayisi: 0 })}
         kategori={kategoriSilmeModal.kategori}
         urunSayisi={kategoriSilmeModal.urunSayisi}
-        kategoriler={kategoriler}
+        kategoriler={kategoriler || []}
         onTasima={handleKategoriTasima}
       />
     </div>
