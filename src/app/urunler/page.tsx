@@ -169,8 +169,9 @@ export default function UrunlerPage() {
   const [urunler, setUrunler] = useState<Urun[]>([]);
   const [toplamUrunSayisi, setToplamUrunSayisi] = useState(0);
   const [sayfa, setSayfa] = useState(1);
-  const [sayfaBasinaUrun, setSayfaBasinaUrun] = useState(10);
-  const [yukleniyor, setYukleniyor] = useState(false);
+  const [sayfaBasinaUrun] = useState(10);
+  const [yukleniyor, setYukleniyor] = useState(true);
+  const [hata, setHata] = useState<string | null>(null);
   const [kategoriSilmeModal, setKategoriSilmeModal] = useState({
     isOpen: false,
     kategori: null as string | null,
@@ -181,30 +182,28 @@ export default function UrunlerPage() {
   const fetchUrunler = async () => {
     try {
       setYukleniyor(true);
+      setHata(null);
       console.log('Ürünler getiriliyor...');
+      
       const response = await fetch(`/api/urunler?sayfa=${sayfa}&sayfaBasina=${sayfaBasinaUrun}`);
       if (!response.ok) {
         throw new Error('Ürünler yüklenirken bir hata oluştu');
       }
+
       const data = await response.json();
       console.log('Ürünler yanıtı:', data);
-      if (data && data.success && Array.isArray(data.urunler)) {
-        console.log('Ürünler başarıyla yüklendi:', data.urunler);
-        setUrunler(data.urunler);
-        setToplamUrunSayisi(typeof data.toplamUrunSayisi === 'number' ? data.toplamUrunSayisi : 0);
-      } else if (data && Array.isArray(data.urunler)) {
-        console.log('Ürünler başarıyla yüklendi (alternatif format):', data.urunler);
-        setUrunler(data.urunler);
-        setToplamUrunSayisi(typeof data.toplamUrun === 'number' ? data.toplamUrun :
-                            typeof data.toplam === 'number' ? data.toplam : data.urunler.length);
-      } else {
-        console.error('Ürünler yanıtı geçersiz:', data);
-        setUrunler([]);
-        setToplamUrunSayisi(0);
-        toast.error('Ürünler yüklenirken bir hata oluştu');
+
+      if (!data || typeof data !== 'object') {
+        throw new Error('Geçersiz API yanıtı');
       }
+
+      const urunlerArray = Array.isArray(data.urunler) ? data.urunler : [];
+      setUrunler(urunlerArray);
+      setToplamUrunSayisi(typeof data.toplamUrunSayisi === 'number' ? data.toplamUrunSayisi : 0);
+
     } catch (error) {
       console.error('Ürünler getirilirken hata:', error);
+      setHata(error instanceof Error ? error.message : 'Ürünler yüklenirken bir hata oluştu');
       setUrunler([]);
       setToplamUrunSayisi(0);
       toast.error('Ürünler yüklenirken bir hata oluştu');
@@ -226,17 +225,15 @@ export default function UrunlerPage() {
       const data = await response.json();
       console.log('Kategoriler yanıtı:', data);
       
-      if (Array.isArray(data.data)) {
-        console.log('Kategoriler başarıyla yüklendi (data):', data.data);
-        setKategoriler(data.data);
-      } else if (Array.isArray(data.kategoriler)) {
-        console.log('Kategoriler başarıyla yüklendi (kategoriler):', data.kategoriler);
-        setKategoriler(data.kategoriler);
-      } else {
-        console.error('Kategoriler yanıtı geçersiz:', data);
-        setKategoriler([]);
-        toast.error('Kategoriler yüklenirken bir hata oluştu');
+      if (!data || typeof data !== 'object') {
+        throw new Error('Geçersiz API yanıtı');
       }
+
+      const kategorilerArray = Array.isArray(data.kategoriler) ? data.kategoriler :
+                             Array.isArray(data.data) ? data.data : [];
+      
+      console.log('Yüklenen kategoriler:', kategorilerArray);
+      setKategoriler(kategorilerArray);
     } catch (error) {
       console.error('Kategoriler getirilirken hata:', error);
       setKategoriler([]);
@@ -248,24 +245,20 @@ export default function UrunlerPage() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        setYukleniyor(true);
         await Promise.all([fetchUrunler(), fetchKategoriler()]);
       } catch (error) {
         console.error('Veriler yüklenirken hata:', error);
-        toast.error('Veriler yüklenirken bir hata oluştu');
-      } finally {
-        setYukleniyor(false);
       }
     };
     loadData();
   }, []);
 
-  // Sayfa veya sayfa başına ürün sayısı değiştiğinde ürünleri getir
+  // Sayfa değiştiğinde ürünleri getir
   useEffect(() => {
-    if (sayfa > 0 && sayfaBasinaUrun > 0) {
+    if (sayfa > 0) {
       fetchUrunler();
     }
-  }, [sayfa, sayfaBasinaUrun]);
+  }, [sayfa]);
 
   // Kategori silme işlemi
   const handleDeleteKategori = async (kategori: string) => {
@@ -332,15 +325,11 @@ export default function UrunlerPage() {
   };
 
   // Toplam sayfa sayısını hesapla
-  const toplamSayfa = Math.ceil(toplamUrunSayisi / sayfaBasinaUrun);
+  const toplamSayfa = Math.max(1, Math.ceil(toplamUrunSayisi / sayfaBasinaUrun));
 
-  // Add safeUrunler variable to ensure we always have an array
-  const safeUrunler = Array.isArray(urunler) ? urunler : [];
-
+  // Render
   return (
     <div className="container mx-auto py-10">
-      {(() => { console.log('Current urunler:', urunler); return null; })()}
-      {/* Ürün Listesi */}
       <div className="space-y-4">
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-bold">Ürün Yönetimi</h1>
@@ -349,7 +338,6 @@ export default function UrunlerPage() {
             <Select
               value={sayfaBasinaUrun.toString()}
               onValueChange={(value) => {
-                setSayfaBasinaUrun(parseInt(value));
                 setSayfa(1);
               }}
             >
@@ -371,13 +359,17 @@ export default function UrunlerPage() {
           <div className="flex justify-center items-center h-64">
             <Loader2 className="h-8 w-8 animate-spin" />
           </div>
-        ) : safeUrunler.length === 0 ? (
+        ) : hata ? (
+          <div className="flex justify-center items-center h-64 text-red-500">
+            {hata}
+          </div>
+        ) : !Array.isArray(urunler) || urunler.length === 0 ? (
           <div className="flex justify-center items-center h-64 text-gray-500">
             Henüz ürün bulunmuyor
           </div>
         ) : (
           <>
-            <ErrorBoundary>
+            <div className="rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -389,34 +381,42 @@ export default function UrunlerPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {Array.isArray(safeUrunler) ? safeUrunler.map((urun) => (
+                  {urunler.map((urun) => (
                     <TableRow key={urun?.id || 'unknown'}>
                       <TableCell>{urun?.ad || '-'}</TableCell>
                       <TableCell>{urun?.kategori || '-'}</TableCell>
-                      <TableCell>{urun?.birimFiyat ? urun.birimFiyat.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' }) : '-'}</TableCell>
+                      <TableCell>
+                        {urun?.birimFiyat
+                          ? new Intl.NumberFormat('tr-TR', {
+                              style: 'currency',
+                              currency: 'TRY',
+                            }).format(urun.birimFiyat)
+                          : '-'}
+                      </TableCell>
                       <TableCell>{urun?.birim || '-'}</TableCell>
                       <TableCell>{urun?.aciklama || '-'}</TableCell>
                     </TableRow>
-                  )) : null}
+                  ))}
                 </TableBody>
               </Table>
-            </ErrorBoundary>
+            </div>
 
-            {/* Sayfalama */}
             {toplamUrunSayisi > 0 && (
               <div className="flex justify-center items-center space-x-2 mt-4">
                 <Button
                   variant="outline"
-                  onClick={() => setSayfa(s => Math.max(1, s - 1))}
+                  onClick={() => setSayfa((s) => Math.max(1, s - 1))}
                   disabled={sayfa === 1}
                 >
                   Önceki
                 </Button>
-                <span className="text-sm">Sayfa {sayfa} / {toplamSayfa || 1}</span>
+                <span className="text-sm">
+                  Sayfa {sayfa} / {toplamSayfa}
+                </span>
                 <Button
                   variant="outline"
-                  onClick={() => setSayfa(s => Math.min((toplamSayfa || 1), s + 1))}
-                  disabled={sayfa === toplamSayfa || toplamSayfa === 0}
+                  onClick={() => setSayfa((s) => Math.min(toplamSayfa, s + 1))}
+                  disabled={sayfa === toplamSayfa}
                 >
                   Sonraki
                 </Button>
@@ -426,13 +426,12 @@ export default function UrunlerPage() {
         )}
       </div>
 
-      {/* Kategori Silme Modal */}
       <KategoriSilmeModal
         isOpen={kategoriSilmeModal.isOpen}
         onClose={() => setKategoriSilmeModal({ isOpen: false, kategori: null, urunSayisi: 0 })}
         kategori={kategoriSilmeModal.kategori}
         urunSayisi={kategoriSilmeModal.urunSayisi}
-        kategoriler={kategoriler || []}
+        kategoriler={kategoriler}
         onTasima={handleKategoriTasima}
       />
     </div>
