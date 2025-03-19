@@ -172,10 +172,15 @@ export default function UrunlerPage() {
       const data = await response.json();
       console.log('Ürünler yanıtı:', data);
       
-      if (data.success) {
+      if (data.success && Array.isArray(data.urunler)) {
         console.log('Ürünler başarıyla yüklendi:', data.urunler);
-        setUrunler(Array.isArray(data.urunler) ? data.urunler : []);
+        setUrunler(data.urunler);
         setToplamUrunSayisi(typeof data.toplamUrunSayisi === 'number' ? data.toplamUrunSayisi : 0);
+      } else if (Array.isArray(data.urunler)) {
+        console.log('Ürünler başarıyla yüklendi (alternatif format):', data.urunler);
+        setUrunler(data.urunler);
+        setToplamUrunSayisi(typeof data.toplamUrun === 'number' ? data.toplamUrun : 
+                            typeof data.toplam === 'number' ? data.toplam : data.urunler.length);
       } else {
         console.error('Ürünler yanıtı geçersiz:', data);
         setUrunler([]);
@@ -205,9 +210,12 @@ export default function UrunlerPage() {
       const data = await response.json();
       console.log('Kategoriler yanıtı:', data);
       
-      if (data.success && Array.isArray(data.data)) {
-        console.log('Kategoriler başarıyla yüklendi:', data.data);
+      if (Array.isArray(data.data)) {
+        console.log('Kategoriler başarıyla yüklendi (data):', data.data);
         setKategoriler(data.data);
+      } else if (Array.isArray(data.kategoriler)) {
+        console.log('Kategoriler başarıyla yüklendi (kategoriler):', data.kategoriler);
+        setKategoriler(data.kategoriler);
       } else {
         console.error('Kategoriler yanıtı geçersiz:', data);
         setKategoriler([]);
