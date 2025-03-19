@@ -217,10 +217,13 @@ export default function UrunlerPage() {
   useEffect(() => {
     const loadData = async () => {
       try {
+        setYukleniyor(true);
         await Promise.all([fetchUrunler(), fetchKategoriler()]);
       } catch (error) {
         console.error('Veriler yüklenirken hata:', error);
         toast.error('Veriler yüklenirken bir hata oluştu');
+      } finally {
+        setYukleniyor(false);
       }
     };
     loadData();
@@ -228,7 +231,9 @@ export default function UrunlerPage() {
 
   // Sayfa veya sayfa başına ürün sayısı değiştiğinde ürünleri getir
   useEffect(() => {
-    fetchUrunler();
+    if (sayfa > 0 && sayfaBasinaUrun > 0) {
+      fetchUrunler();
+    }
   }, [sayfa, sayfaBasinaUrun]);
 
   // Kategori silme işlemi
