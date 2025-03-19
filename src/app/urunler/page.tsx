@@ -95,16 +95,20 @@ export default function UrunlerPage() {
   const fetchKategoriler = async () => {
     try {
       const response = await fetch('/api/urunler/kategoriler');
+      if (!response.ok) {
+        throw new Error('Kategoriler yüklenirken bir hata oluştu');
+      }
       const data = await response.json();
-      if (data.success) {
-        setKategoriler(data.data || []); // Eğer data undefined ise boş dizi kullan
+      
+      if (data.success && Array.isArray(data.data)) {
+        setKategoriler(data.data);
       } else {
-        setKategoriler([]); // Hata durumunda boş dizi
+        setKategoriler([]);
         toast.error('Kategoriler yüklenirken bir hata oluştu');
       }
     } catch (error) {
       console.error('Kategoriler getirilirken hata:', error);
-      setKategoriler([]); // Hata durumunda boş dizi
+      setKategoriler([]);
       toast.error('Kategoriler yüklenirken bir hata oluştu');
     }
   };
@@ -293,7 +297,7 @@ export default function UrunlerPage() {
                   <SelectValue placeholder="Kategori seçin" />
                 </SelectTrigger>
                 <SelectContent>
-                  {kategoriler && kategoriler.length > 0 ? (
+                  {Array.isArray(kategoriler) && kategoriler.length > 0 ? (
                     kategoriler
                       .filter(k => k !== silinecekKategori)
                       .map((kategori) => (
