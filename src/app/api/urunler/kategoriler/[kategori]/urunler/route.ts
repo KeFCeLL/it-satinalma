@@ -64,5 +64,50 @@ async function deleteKategoriUrunleriHandler(
   }
 }
 
+async function updateUrunKategorileriHandler(
+  request: Request,
+  { params }: { params: { kategori: string } }
+) {
+  try {
+    const { kategori } = params;
+    const body = await request.json();
+    const { yeniKategori } = body;
+
+    if (!yeniKategori) {
+      return NextResponse.json(
+        { success: false, message: "Yeni kategori belirtilmedi" },
+        { status: 400 }
+      );
+    }
+
+    // Ürünleri yeni kategoriye taşı
+    await prisma.urun.updateMany({
+      where: {
+        kategori: kategori,
+      },
+      data: {
+        kategori: yeniKategori,
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: "Ürünler başarıyla taşındı",
+    });
+  } catch (error) {
+    console.error('Ürün kategorileri güncelleme hatası:', error);
+    return NextResponse.json(
+      { 
+        success: false, 
+        message: `Ürünler taşınırken bir hata oluştu: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}` 
+      },
+      { status: 500 }
+    );
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
 // Sadece ADMIN ve IT_ADMIN rollerine sahip kullanıcılar ürünleri silebilir
-export const DELETE = withAuth(withRole(['ADMIN', 'IT_ADMIN'], deleteKategoriUrunleriHandler)); 
+export const DELETE = withAuth(withRole(['ADMIN', 'IT_ADMIN'], deleteKategoriUrunleriHandler));
+export const PATCH = withRole(updateUrunKategorileriHandler, ["ADMIN", "IT_ADMIN", "SATINALMA_ADMIN"]); 
