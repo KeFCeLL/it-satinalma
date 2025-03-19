@@ -98,7 +98,7 @@ function KategoriSilmeModal({
                 <SelectValue placeholder="Kategori seçin" />
               </SelectTrigger>
               <SelectContent>
-                {kategoriler.length > 0 ? (
+                {Array.isArray(kategoriler) && kategoriler.length > 0 ? (
                   kategoriler
                     .filter(k => k !== kategori)
                     .map((k) => (
