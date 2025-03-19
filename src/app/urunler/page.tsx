@@ -44,6 +44,104 @@ interface Urun {
   updatedAt: Date;
 }
 
+interface KategoriSilmeModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  kategori: string | null;
+  urunSayisi: number;
+  kategoriler: string[];
+  onTasima: (hedefKategori: string) => Promise<void>;
+}
+
+// Kategori Silme Modal Bileşeni
+function KategoriSilmeModal({
+  isOpen,
+  onClose,
+  kategori,
+  urunSayisi,
+  kategoriler,
+  onTasima,
+}: KategoriSilmeModalProps) {
+  const [hedefKategori, setHedefKategori] = useState<string>('');
+  const [loading, setLoading] = useState(false);
+
+  const handleTasima = async () => {
+    if (!hedefKategori) return;
+    try {
+      setLoading(true);
+      await onTasima(hedefKategori);
+      onClose();
+    } catch (error) {
+      console.error('Taşıma hatası:', error);
+      toast.error('Ürünler taşınırken bir hata oluştu');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Kategori Silme Onayı</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <p>
+            <span className="font-semibold">{kategori}</span> kategorisinde{' '}
+            <span className="font-semibold">{urunSayisi}</span> ürün bulunuyor.
+            Bu ürünleri başka bir kategoriye taşımak ister misiniz?
+          </p>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Hedef Kategori</label>
+            <Select value={hedefKategori} onValueChange={setHedefKategori}>
+              <SelectTrigger>
+                <SelectValue placeholder="Kategori seçin" />
+              </SelectTrigger>
+              <SelectContent>
+                {kategoriler.length > 0 ? (
+                  kategoriler
+                    .filter(k => k !== kategori)
+                    .map((k) => (
+                      <SelectItem key={k} value={k}>
+                        {k}
+                      </SelectItem>
+                    ))
+                ) : (
+                  <SelectItem value="" disabled>
+                    Kategori bulunamadı
+                  </SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex justify-end space-x-2">
+            <Button
+              variant="outline"
+              onClick={onClose}
+              disabled={loading}
+            >
+              İptal
+            </Button>
+            <Button
+              onClick={handleTasima}
+              disabled={!hedefKategori || loading}
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Taşınıyor...
+                </>
+              ) : (
+                'Taşı ve Sil'
+              )}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // Ana sayfa bileşeni
 export default function UrunlerPage() {
   // State'leri ekle
@@ -53,11 +151,11 @@ export default function UrunlerPage() {
   const [sayfa, setSayfa] = useState(1);
   const [sayfaBasinaUrun, setSayfaBasinaUrun] = useState(10);
   const [yukleniyor, setYukleniyor] = useState(false);
-  const [kategoriSilmeModalOpen, setKategoriSilmeModalOpen] = useState(false);
-  const [silinecekKategori, setSilinecekKategori] = useState<string | null>(null);
-  const [silinecekKategoriUrunSayisi, setSilinecekKategoriUrunSayisi] = useState<number>(0);
-  const [hedefKategori, setHedefKategori] = useState<string>('');
-  const [kategoriTasimaLoading, setKategoriTasimaLoading] = useState(false);
+  const [kategoriSilmeModal, setKategoriSilmeModal] = useState({
+    isOpen: false,
+    kategori: null as string | null,
+    urunSayisi: 0,
+  });
 
   // Ürünleri getir
   const fetchUrunler = async () => {
@@ -126,7 +224,7 @@ export default function UrunlerPage() {
     fetchUrunler();
   }, [sayfa, sayfaBasinaUrun]);
 
-  // Kategori silme fonksiyonunu güncelle
+  // Kategori silme işlemi
   const handleDeleteKategori = async (kategori: string) => {
     try {
       const response = await fetch(`/api/urunler/kategoriler?kategori=${encodeURIComponent(kategori)}`);
@@ -134,21 +232,21 @@ export default function UrunlerPage() {
 
       if (!response.ok) {
         if (data.message?.includes('ürün bulunuyor')) {
-          // Kategoride ürün varsa modalı göster
-          setSilinecekKategori(kategori);
-          setSilinecekKategoriUrunSayisi(parseInt(data.message.match(/\d+/)[0]));
-          setKategoriSilmeModalOpen(true);
+          const urunSayisi = parseInt(data.message.match(/\d+/)?.[0] || '0');
+          setKategoriSilmeModal({
+            isOpen: true,
+            kategori,
+            urunSayisi,
+          });
           return;
         }
         throw new Error(data.message || 'Kategori silinirken bir hata oluştu');
       }
 
-      // Kategoride ürün yoksa direkt sil
       await fetch(`/api/urunler/kategoriler?kategori=${encodeURIComponent(kategori)}`, {
         method: 'DELETE',
       });
 
-      // Kategorileri yenile
       fetchKategoriler();
       toast.success('Kategori başarıyla silindi');
     } catch (error) {
@@ -157,20 +255,23 @@ export default function UrunlerPage() {
     }
   };
 
-  const handleKategoriTasima = async () => {
-    if (!silinecekKategori || !hedefKategori) return;
+  // Ürünleri taşıma işlemi
+  const handleKategoriTasima = async (hedefKategori: string) => {
+    if (!kategoriSilmeModal.kategori) return;
 
     try {
-      setKategoriTasimaLoading(true);
-      const response = await fetch(`/api/urunler/kategoriler/${encodeURIComponent(silinecekKategori)}/urunler`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          yeniKategori: hedefKategori,
-        }),
-      });
+      const response = await fetch(
+        `/api/urunler/kategoriler/${encodeURIComponent(kategoriSilmeModal.kategori)}/urunler`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            yeniKategori: hedefKategori,
+          }),
+        }
+      );
 
       const data = await response.json();
 
@@ -178,17 +279,12 @@ export default function UrunlerPage() {
         throw new Error(data.message || 'Ürünler taşınırken bir hata oluştu');
       }
 
-      // Kategorileri yenile
       fetchKategoriler();
       toast.success('Ürünler başarıyla taşındı');
-      setKategoriSilmeModalOpen(false);
-      setSilinecekKategori(null);
-      setHedefKategori('');
     } catch (error) {
       console.error('Ürünler taşınırken hata:', error);
       toast.error(error instanceof Error ? error.message : 'Ürünler taşınırken bir hata oluştu');
-    } finally {
-      setKategoriTasimaLoading(false);
+      throw error;
     }
   };
 
@@ -287,69 +383,14 @@ export default function UrunlerPage() {
       </div>
 
       {/* Kategori Silme Modal */}
-      <Dialog open={kategoriSilmeModalOpen} onOpenChange={setKategoriSilmeModalOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Kategori Silme Onayı</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <p>
-              <span className="font-semibold">{silinecekKategori}</span> kategorisinde{' '}
-              <span className="font-semibold">{silinecekKategoriUrunSayisi}</span> ürün bulunuyor.
-              Bu ürünleri başka bir kategoriye taşımak ister misiniz?
-            </p>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Hedef Kategori</label>
-              <Select value={hedefKategori} onValueChange={setHedefKategori}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Kategori seçin" />
-                </SelectTrigger>
-                <SelectContent>
-                  {Array.isArray(kategoriler) && kategoriler.length > 0 ? (
-                    kategoriler
-                      .filter(k => k !== silinecekKategori)
-                      .map((kategori) => (
-                        <SelectItem key={kategori} value={kategori}>
-                          {kategori}
-                        </SelectItem>
-                      ))
-                  ) : (
-                    <SelectItem value="" disabled>
-                      Kategori bulunamadı
-                    </SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex justify-end space-x-2">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setKategoriSilmeModalOpen(false);
-                  setSilinecekKategori(null);
-                  setHedefKategori('');
-                }}
-                disabled={kategoriTasimaLoading}
-              >
-                İptal
-              </Button>
-              <Button
-                onClick={handleKategoriTasima}
-                disabled={!hedefKategori || kategoriTasimaLoading}
-              >
-                {kategoriTasimaLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Taşınıyor...
-                  </>
-                ) : (
-                  'Taşı ve Sil'
-                )}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <KategoriSilmeModal
+        isOpen={kategoriSilmeModal.isOpen}
+        onClose={() => setKategoriSilmeModal({ isOpen: false, kategori: null, urunSayisi: 0 })}
+        kategori={kategoriSilmeModal.kategori}
+        urunSayisi={kategoriSilmeModal.urunSayisi}
+        kategoriler={kategoriler}
+        onTasima={handleKategoriTasima}
+      />
     </div>
   );
 } 
