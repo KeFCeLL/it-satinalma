@@ -6,6 +6,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Loader2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 // Kullanıcı tipi tanımı
 interface Kullanici {
@@ -24,15 +32,60 @@ interface Kullanici {
   };
 }
 
+// Ürün tipi tanımı
+interface Urun {
+  id: string;
+  ad: string;
+  kategori: string;
+  birimFiyat: number;
+  birim: string;
+  aciklama: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 // Ana sayfa bileşeni
 export default function UrunlerPage() {
   // State'leri ekle
   const [kategoriler, setKategoriler] = useState<string[]>([]);
+  const [urunler, setUrunler] = useState<Urun[]>([]);
+  const [toplamUrunSayisi, setToplamUrunSayisi] = useState(0);
+  const [sayfa, setSayfa] = useState(1);
+  const [sayfaBasinaUrun, setSayfaBasinaUrun] = useState(10);
+  const [yukleniyor, setYukleniyor] = useState(false);
   const [kategoriSilmeModalOpen, setKategoriSilmeModalOpen] = useState(false);
   const [silinecekKategori, setSilinecekKategori] = useState<string | null>(null);
   const [silinecekKategoriUrunSayisi, setSilinecekKategoriUrunSayisi] = useState<number>(0);
   const [hedefKategori, setHedefKategori] = useState<string>('');
   const [kategoriTasimaLoading, setKategoriTasimaLoading] = useState(false);
+
+  // Ürünleri getir
+  const fetchUrunler = async () => {
+    try {
+      setYukleniyor(true);
+      const response = await fetch(
+        `/api/urunler?sayfa=${sayfa}&sayfaBasina=${sayfaBasinaUrun}`
+      );
+      const data = await response.json();
+      
+      if (data.success) {
+        setUrunler(data.urunler);
+        setToplamUrunSayisi(data.toplamUrunSayisi);
+      } else {
+        toast.error('Ürünler yüklenirken bir hata oluştu');
+      }
+    } catch (error) {
+      console.error('Ürünler getirilirken hata:', error);
+      toast.error('Ürünler yüklenirken bir hata oluştu');
+    } finally {
+      setYukleniyor(false);
+    }
+  };
+
+  // Sayfa değiştiğinde ürünleri getir
+  useEffect(() => {
+    fetchUrunler();
+  }, [sayfa, sayfaBasinaUrun]);
 
   // Kategorileri getir
   const fetchKategoriler = async () => {
@@ -119,10 +172,94 @@ export default function UrunlerPage() {
     }
   };
 
+  // Toplam sayfa sayısını hesapla
+  const toplamSayfa = Math.ceil(toplamUrunSayisi / sayfaBasinaUrun);
+
   return (
     <div className="container mx-auto py-10">
-      {/* Sayfa içeriği */}
-      
+      {/* Ürün Listesi */}
+      <div className="space-y-4">
+        <div className="flex justify-between items-center">
+          <h1 className="text-2xl font-bold">Ürün Yönetimi</h1>
+          <div className="flex items-center space-x-2">
+            <span className="text-sm text-gray-500">Sayfa başına:</span>
+            <Select
+              value={sayfaBasinaUrun.toString()}
+              onValueChange={(value) => {
+                setSayfaBasinaUrun(parseInt(value));
+                setSayfa(1); // Sayfa başına ürün sayısı değiştiğinde ilk sayfaya dön
+              }}
+            >
+              <SelectTrigger className="w-[100px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10">10</SelectItem>
+                <SelectItem value="20">20</SelectItem>
+                <SelectItem value="30">30</SelectItem>
+                <SelectItem value="50">50</SelectItem>
+                <SelectItem value="100">100</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {yukleniyor ? (
+          <div className="flex justify-center items-center h-64">
+            <Loader2 className="h-8 w-8 animate-spin" />
+          </div>
+        ) : (
+          <>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Ürün Adı</TableHead>
+                  <TableHead>Kategori</TableHead>
+                  <TableHead>Birim Fiyat</TableHead>
+                  <TableHead>Birim</TableHead>
+                  <TableHead>Açıklama</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {urunler.map((urun) => (
+                  <TableRow key={urun.id}>
+                    <TableCell>{urun.ad}</TableCell>
+                    <TableCell>{urun.kategori}</TableCell>
+                    <TableCell>{urun.birimFiyat.toLocaleString('tr-TR', {
+                      style: 'currency',
+                      currency: 'TRY'
+                    })}</TableCell>
+                    <TableCell>{urun.birim}</TableCell>
+                    <TableCell>{urun.aciklama}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+
+            {/* Sayfalama */}
+            <div className="flex justify-center items-center space-x-2 mt-4">
+              <Button
+                variant="outline"
+                onClick={() => setSayfa(s => Math.max(1, s - 1))}
+                disabled={sayfa === 1}
+              >
+                Önceki
+              </Button>
+              <span className="text-sm">
+                Sayfa {sayfa} / {toplamSayfa}
+              </span>
+              <Button
+                variant="outline"
+                onClick={() => setSayfa(s => Math.min(toplamSayfa, s + 1))}
+                disabled={sayfa === toplamSayfa}
+              >
+                Sonraki
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
+
       {/* Kategori Silme Modal */}
       <Dialog open={kategoriSilmeModalOpen} onOpenChange={setKategoriSilmeModalOpen}>
         <DialogContent>
@@ -181,8 +318,6 @@ export default function UrunlerPage() {
           </div>
         </DialogContent>
       </Dialog>
-      
-      {/* Diğer bileşenler */}
     </div>
   );
 } 
