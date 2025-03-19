@@ -493,8 +493,8 @@ async function createKullaniciHandler(request) {
       
       // Şifre hash'le
       let hashedPassword = null;
-      if (body.password) {
-        hashedPassword = await bcrypt.hash(body.password, 10);
+      if (body.sifre) {
+        hashedPassword = await bcrypt.hash(body.sifre, 10);
       }
       
       // Yeni kullanıcı oluştur
@@ -503,15 +503,15 @@ async function createKullaniciHandler(request) {
           ad: body.ad,
           soyad: body.soyad,
           email: body.email,
-          password: hashedPassword,
+          sifre: hashedPassword,
           departmanId: body.departmanId,
-          role: body.role || 'USER',
-          status: body.status || 'AKTIF'
+          rol: body.role || 'USER',
+          durum: "AKTIF"
         }
       });
       
       // Şifreyi yanıttan çıkar
-      const { password, ...kullaniciWithoutPassword } = yeniKullanici;
+      const { sifre, ...kullaniciWithoutPassword } = yeniKullanici;
       
       logInfo(`Yeni kullanıcı başarıyla oluşturuldu: ${yeniKullanici.id}`);
 

@@ -176,9 +176,22 @@ export function KullaniciListe() {
     return searchContent.includes(searchTerm.toLowerCase());
   });
 
-  // Kullanıcı düzenleme sayfasına git
-  const handleEdit = (id: string) => {
-    router.push(`/kullanicilar/duzenle/${id}`);
+  // Kullanıcı düzenleme modalını aç
+  const handleEdit = (kullanici: Kullanici) => {
+    setUserToEdit(kullanici);
+    setShowEditDialog(true);
+  };
+
+  // Düzenleme modalını kapat
+  const handleEditDialogClose = () => {
+    setShowEditDialog(false);
+    setUserToEdit(null);
+  };
+
+  // Düzenleme başarılı olduğunda
+  const handleEditSuccess = () => {
+    fetchUsers(); // Kullanıcı listesini yenile
+    handleEditDialogClose();
   };
 
   // Silme işlemini başlat
@@ -317,7 +330,7 @@ export function KullaniciListe() {
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>İşlemler</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => handleEdit(user.id)}>
+              <DropdownMenuItem onClick={() => handleEdit(user)}>
                 <Pencil className="mr-2 h-4 w-4" />
                 Düzenle
               </DropdownMenuItem>
@@ -351,7 +364,17 @@ export function KullaniciListe() {
         searchPlaceholder="Kullanıcı ara..."
       />
 
-      {/* Silme Onay Dialog */}
+      {/* Düzenleme Modalı */}
+      {userToEdit && (
+        <KullaniciDuzenle
+          user={userToEdit}
+          open={showEditDialog}
+          onOpenChange={handleEditDialogClose}
+          onSuccess={handleEditSuccess}
+        />
+      )}
+
+      {/* Silme Dialog'u */}
       <AlertDialog open={openDeleteDialog} onOpenChange={setOpenDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -371,21 +394,6 @@ export function KullaniciListe() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* Düzenleme Dialog */}
-      {userToEdit && (
-        <KullaniciDuzenle
-          user={userToEdit}
-          open={showEditDialog}
-          onClose={() => {
-            setShowEditDialog(false);
-            setUserToEdit(null);
-          }}
-          onSuccess={() => {
-            queryClient.invalidateQueries({ queryKey: ['kullanicilar'] });
-          }}
-        />
-      )}
     </div>
   );
 } 

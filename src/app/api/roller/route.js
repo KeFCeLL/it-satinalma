@@ -5,30 +5,37 @@ import { withAuth, withRole } from '../middleware';
 // Tüm rolleri ve izinleri getir
 async function getRolesHandler(request) {
   try {
-    // Tüm rol-izin eşleştirmelerini getir
-    const rolePermissions = await prisma.rolIzin.findMany();
-    
+    if (!prisma) {
+      throw new Error('Prisma istemcisi başlatılamadı');
+    }
+
     // Tüm izin tanımlarını getir
     const permissionDefinitions = await prisma.izinTanimi.findMany();
-    
-    // Rol enum değerlerini al ve isimleri belirle
+    console.log('Bulunan izin tanımları:', permissionDefinitions);
+
+    // Tüm rol-izin eşleştirmelerini getir
+    const rolePermissions = await prisma.rolIzin.findMany();
+    console.log('Bulunan rol-izin eşleştirmeleri:', rolePermissions);
+
+    // Statik rol listesi
     const roles = [
-      { id: 'ADMIN', name: 'Sistem Yöneticisi' },
-      { id: 'IT_ADMIN', name: 'IT Yöneticisi' },
-      { id: 'FINANS_ADMIN', name: 'Finans Yöneticisi' },
-      { id: 'SATINALMA_ADMIN', name: 'Satınalma Yöneticisi' },
-      { id: 'DEPARTMAN_YONETICISI', name: 'Departman Yöneticisi' },
-      { id: 'KULLANICI', name: 'Standart Kullanıcı' },
+      { kod: 'ADMIN', ad: 'Sistem Yöneticisi' },
+      { kod: 'IT_ADMIN', ad: 'IT Yöneticisi' },
+      { kod: 'FINANS_ADMIN', ad: 'Finans Yöneticisi' },
+      { kod: 'SATINALMA_ADMIN', ad: 'Satınalma Yöneticisi' },
+      { kod: 'DEPARTMAN_YONETICISI', ad: 'Departman Yöneticisi' },
+      { kod: 'KULLANICI', ad: 'Standart Kullanıcı' }
     ];
 
     // Her rol için izinleri grupla
     const rolesWithPermissions = roles.map(role => {
       const permissions = rolePermissions
-        .filter(rp => rp.rolKodu === role.id)
+        .filter(rp => rp.rolKodu === role.kod)
         .map(rp => rp.izinKodu);
       
       return {
-        ...role,
+        id: role.kod,
+        name: role.ad,
         permissions
       };
     });
@@ -51,9 +58,19 @@ async function getRolesHandler(request) {
       }))
     });
   } catch (error) {
-    console.error('Roller getirme hatası:', error);
+    console.error('Detaylı hata bilgisi:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      prisma: !!prisma
+    });
+    
     return NextResponse.json(
-      { success: false, message: 'Roller getirilirken bir hata oluştu' },
+      { 
+        success: false, 
+        message: error.message || 'Roller getirilirken bir hata oluştu',
+        error: error.toString()
+      },
       { status: 500 }
     );
   }
@@ -86,9 +103,16 @@ async function updateRolePermissionsHandler(request) {
       });
     }
     
+    // Güncellenmiş rol ve izinleri getir
+    const updatedRole = await prisma.rolIzin.findMany({
+      where: { rolKodu: roleId },
+      select: { izinKodu: true }
+    });
+
     return NextResponse.json({
       success: true,
-      message: 'Rol izinleri başarıyla güncellendi'
+      message: 'Rol izinleri başarıyla güncellendi',
+      permissions: updatedRole.map(rp => rp.izinKodu)
     });
   } catch (error) {
     console.error('Rol izinleri güncelleme hatası:', error);
@@ -111,41 +135,28 @@ async function seedPermissionsHandler(request) {
       );
     }
 
-    // Tüm mevcut izin tanımlarını sil (sadece geliştirme ortamında)
-    if (process.env.NODE_ENV !== 'production') {
-      await prisma.izinTanimi.deleteMany();
-    }
-
     // İzin tanımlarını ekle
-    for (const category of Object.keys(permissionData.permissions)) {
-      const permissions = permissionData.permissions[category];
-      
+    for (const [category, permissions] of Object.entries(permissionData.permissions)) {
       for (const perm of permissions) {
-        await prisma.izinTanimi.create({
-          data: {
-            kod: perm.id,
-            ad: perm.name,
-            aciklama: perm.description,
-            kategori: category
-          }
-        });
-      }
-    }
-
-    // Varsayılan rol-izin eşleştirmelerini ekle
-    if (permissionData.defaultRolePermissions) {
-      // Önce tüm rol-izin eşleştirmelerini sil (sadece geliştirme ortamında)
-      if (process.env.NODE_ENV !== 'production') {
-        await prisma.rolIzin.deleteMany();
-      }
-
-      for (const rolePerm of permissionData.defaultRolePermissions) {
-        await prisma.rolIzin.create({
-          data: {
-            rolKodu: rolePerm.roleId,
-            izinKodu: rolePerm.permissionId
-          }
-        });
+        try {
+          await prisma.izinTanimi.upsert({
+            where: { kod: perm.id },
+            update: {
+              ad: perm.name,
+              aciklama: perm.description,
+              kategori: category
+            },
+            create: {
+              kod: perm.id,
+              ad: perm.name,
+              aciklama: perm.description,
+              kategori: category
+            }
+          });
+        } catch (error) {
+          console.error(`İzin tanımı eklenirken hata (${perm.id}):`, error);
+          throw new Error(`İzin tanımı eklenirken hata: ${perm.id}`);
+        }
       }
     }
 
@@ -156,7 +167,108 @@ async function seedPermissionsHandler(request) {
   } catch (error) {
     console.error('İzin tanımları yükleme hatası:', error);
     return NextResponse.json(
-      { success: false, message: 'İzin tanımları yüklenirken bir hata oluştu' },
+      { success: false, message: error.message || 'İzin tanımları yüklenirken bir hata oluştu' },
+      { status: 500 }
+    );
+  }
+}
+
+// Rol ekle
+async function createRoleHandler(request) {
+  try {
+    const { id, name } = await request.json();
+    
+    if (!id || !name) {
+      return NextResponse.json(
+        { success: false, message: 'Rol ID ve adı gereklidir' },
+        { status: 400 }
+      );
+    }
+
+    // Rolü ekle
+    const newRole = await prisma.rol.create({
+      data: {
+        kod: id,
+        ad: name
+      }
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: 'Rol başarıyla eklendi',
+      role: newRole
+    });
+  } catch (error) {
+    console.error('Rol ekleme hatası:', error);
+    return NextResponse.json(
+      { success: false, message: 'Rol eklenirken bir hata oluştu' },
+      { status: 500 }
+    );
+  }
+}
+
+// Rol güncelle
+async function updateRoleHandler(request) {
+  try {
+    const { id, name } = await request.json();
+    
+    if (!id || !name) {
+      return NextResponse.json(
+        { success: false, message: 'Rol ID ve adı gereklidir' },
+        { status: 400 }
+      );
+    }
+
+    // Rolü güncelle
+    const updatedRole = await prisma.rol.update({
+      where: { kod: id },
+      data: { ad: name }
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: 'Rol başarıyla güncellendi',
+      role: updatedRole
+    });
+  } catch (error) {
+    console.error('Rol güncelleme hatası:', error);
+    return NextResponse.json(
+      { success: false, message: 'Rol güncellenirken bir hata oluştu' },
+      { status: 500 }
+    );
+  }
+}
+
+// Rol sil
+async function deleteRoleHandler(request) {
+  try {
+    const { id } = await request.json();
+    
+    if (!id) {
+      return NextResponse.json(
+        { success: false, message: 'Rol ID gereklidir' },
+        { status: 400 }
+      );
+    }
+
+    // Önce rol-izin eşleştirmelerini sil
+    await prisma.rolIzin.deleteMany({
+      where: { rolKodu: id }
+    });
+
+    // Rolü sil
+    await prisma.rol.delete({
+      where: { kod: id }
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: 'Rol başarıyla silindi'
+    });
+  } catch (error) {
+    console.error('Rol silme hatası:', error);
+    return NextResponse.json(
+      { success: false, message: 'Rol silinirken bir hata oluştu' },
       { status: 500 }
     );
   }
@@ -164,5 +276,6 @@ async function seedPermissionsHandler(request) {
 
 // Middleware kontrollerini ekliyoruz
 export const GET = withAuth(getRolesHandler);
-export const PUT = withRole(updateRolePermissionsHandler, ['ADMIN']);
-export const POST = withRole(seedPermissionsHandler, ['ADMIN']); 
+export const POST = withRole(createRoleHandler, ['ADMIN']);
+export const PUT = withRole(updateRoleHandler, ['ADMIN']);
+export const DELETE = withRole(deleteRoleHandler, ['ADMIN']); 

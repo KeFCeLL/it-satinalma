@@ -26,6 +26,9 @@ import {
   getRolesWithPermissions, 
   updateRolePermissions, 
   seedPermissions,
+  createRole,
+  updateRole,
+  deleteRole,
   type Role as RoleType,
   type Permission as PermissionType,
   type PermissionCategory as PermissionCategoryType
@@ -71,6 +74,14 @@ export function RolYonetimi() {
         // Rolleri ve izinleri getir
         const response = await getRolesWithPermissions();
         
+        if (!response) {
+          throw new Error('API yanıtı alınamadı');
+        }
+
+        if (!response.success) {
+          throw new Error(response.message || 'Roller getirilirken bir hata oluştu');
+        }
+        
         if (response && response.roles && response.permissionCategories) {
           // Rolleri ayarla
           setRoles(response.roles.map(role => ({
@@ -96,10 +107,12 @@ export function RolYonetimi() {
           }
           
           setInitialDataLoaded(true);
+        } else {
+          throw new Error('Geçersiz API yanıtı formatı');
         }
       } catch (error) {
         console.error("Rol ve izinler yüklenirken hata:", error);
-        toast.error("Rol ve izinler yüklenirken bir hata oluştu");
+        toast.error(error instanceof Error ? error.message : "Rol ve izinler yüklenirken bir hata oluştu");
       } finally {
         setLoading(false);
       }
@@ -125,19 +138,33 @@ export function RolYonetimi() {
   // İlk kez çalıştırılacak - veritabanında izin yoksa başlangıç izinlerini ekle
   const seedInitialPermissionsIfNeeded = async () => {
     try {
-      // Varsayılan izin yapılandırmasını oluştur
-      const defaultPermissions = createDefaultPermissions();
+      // Önce mevcut izinleri kontrol et
+      const response = await getRolesWithPermissions();
       
-      // API'ye gönder
-      await seedPermissions(defaultPermissions);
+      // Eğer izin kategorileri boşsa veya hiç izin yoksa, varsayılan izinleri ekle
+      if (!response.permissionCategories || response.permissionCategories.length === 0) {
+        // Varsayılan izin yapılandırmasını oluştur
+        const defaultPermissions = createDefaultPermissions();
+        
+        // API'ye gönder
+        const seedResponse = await seedPermissions(defaultPermissions);
+        
+        if (seedResponse.success) {
+          // İzinler eklendikten sonra sayfayı yenile
+          window.location.reload();
+        } else {
+          toast.error(seedResponse.message || "İzin tanımları yüklenirken bir hata oluştu");
+        }
+      }
     } catch (error) {
       console.error("İzin tanımları yüklenirken hata:", error);
+      toast.error("İzin tanımları yüklenirken bir hata oluştu");
     }
   };
   
   // Varsayılan izin yapılandırması
   const createDefaultPermissions = () => {
-    const defaultPermissions = {
+    return {
       permissions: {
         "Kullanıcı Yönetimi": [
           { 
@@ -248,99 +275,9 @@ export function RolYonetimi() {
             name: 'Rapor Dışa Aktarma', 
             description: 'Raporları dışa aktarma yetkisi'
           }
-        ],
-        "Sistem Ayarları": [
-          { 
-            id: 'system.settings', 
-            name: 'Sistem Ayarları', 
-            description: 'Sistem ayarlarını değiştirme yetkisi'
-          },
-          { 
-            id: 'system.logs', 
-            name: 'Sistem Logları', 
-            description: 'Sistem loglarını görüntüleme yetkisi'
-          },
-          { 
-            id: 'system.backup', 
-            name: 'Yedekleme ve Geri Yükleme', 
-            description: 'Sistem yedekleme ve geri yükleme işlemleri yapma yetkisi'
-          }
         ]
-      },
-      defaultRolePermissions: [
-        // ADMIN tüm yetkilere sahip olmalı
-        { roleId: 'ADMIN', permissionId: 'user.view' },
-        { roleId: 'ADMIN', permissionId: 'user.create' },
-        { roleId: 'ADMIN', permissionId: 'user.edit' },
-        { roleId: 'ADMIN', permissionId: 'user.delete' },
-        { roleId: 'ADMIN', permissionId: 'role.manage' },
-        { roleId: 'ADMIN', permissionId: 'request.create' },
-        { roleId: 'ADMIN', permissionId: 'request.view_own' },
-        { roleId: 'ADMIN', permissionId: 'request.view_all' },
-        { roleId: 'ADMIN', permissionId: 'request.approve' },
-        { roleId: 'ADMIN', permissionId: 'request.reject' },
-        { roleId: 'ADMIN', permissionId: 'request.edit' },
-        { roleId: 'ADMIN', permissionId: 'request.delete' },
-        { roleId: 'ADMIN', permissionId: 'purchase.process' },
-        { roleId: 'ADMIN', permissionId: 'purchase.approve' },
-        { roleId: 'ADMIN', permissionId: 'purchase.complete' },
-        { roleId: 'ADMIN', permissionId: 'product.view' },
-        { roleId: 'ADMIN', permissionId: 'product.manage' },
-        { roleId: 'ADMIN', permissionId: 'report.basic' },
-        { roleId: 'ADMIN', permissionId: 'report.advanced' },
-        { roleId: 'ADMIN', permissionId: 'report.export' },
-        { roleId: 'ADMIN', permissionId: 'system.settings' },
-        { roleId: 'ADMIN', permissionId: 'system.logs' },
-        { roleId: 'ADMIN', permissionId: 'system.backup' },
-        
-        // IT_ADMIN yetkileri
-        { roleId: 'IT_ADMIN', permissionId: 'user.view' },
-        { roleId: 'IT_ADMIN', permissionId: 'user.create' },
-        { roleId: 'IT_ADMIN', permissionId: 'user.edit' },
-        { roleId: 'IT_ADMIN', permissionId: 'request.view_all' },
-        { roleId: 'IT_ADMIN', permissionId: 'request.approve' },
-        { roleId: 'IT_ADMIN', permissionId: 'request.reject' },
-        { roleId: 'IT_ADMIN', permissionId: 'product.view' },
-        { roleId: 'IT_ADMIN', permissionId: 'product.manage' },
-        { roleId: 'IT_ADMIN', permissionId: 'report.basic' },
-        
-        // FINANS_ADMIN yetkileri
-        { roleId: 'FINANS_ADMIN', permissionId: 'request.view_all' },
-        { roleId: 'FINANS_ADMIN', permissionId: 'request.approve' },
-        { roleId: 'FINANS_ADMIN', permissionId: 'request.reject' },
-        { roleId: 'FINANS_ADMIN', permissionId: 'product.view' },
-        { roleId: 'FINANS_ADMIN', permissionId: 'report.basic' },
-        { roleId: 'FINANS_ADMIN', permissionId: 'report.advanced' },
-        { roleId: 'FINANS_ADMIN', permissionId: 'report.export' },
-        
-        // SATINALMA_ADMIN yetkileri
-        { roleId: 'SATINALMA_ADMIN', permissionId: 'request.view_all' },
-        { roleId: 'SATINALMA_ADMIN', permissionId: 'purchase.process' },
-        { roleId: 'SATINALMA_ADMIN', permissionId: 'purchase.approve' },
-        { roleId: 'SATINALMA_ADMIN', permissionId: 'purchase.complete' },
-        { roleId: 'SATINALMA_ADMIN', permissionId: 'product.view' },
-        { roleId: 'SATINALMA_ADMIN', permissionId: 'product.manage' },
-        { roleId: 'SATINALMA_ADMIN', permissionId: 'report.basic' },
-        { roleId: 'SATINALMA_ADMIN', permissionId: 'report.advanced' },
-        { roleId: 'SATINALMA_ADMIN', permissionId: 'report.export' },
-        
-        // DEPARTMAN_YONETICISI yetkileri
-        { roleId: 'DEPARTMAN_YONETICISI', permissionId: 'request.create' },
-        { roleId: 'DEPARTMAN_YONETICISI', permissionId: 'request.view_own' },
-        { roleId: 'DEPARTMAN_YONETICISI', permissionId: 'request.view_all' },
-        { roleId: 'DEPARTMAN_YONETICISI', permissionId: 'request.approve' },
-        { roleId: 'DEPARTMAN_YONETICISI', permissionId: 'request.reject' },
-        { roleId: 'DEPARTMAN_YONETICISI', permissionId: 'product.view' },
-        { roleId: 'DEPARTMAN_YONETICISI', permissionId: 'report.basic' },
-        
-        // KULLANICI yetkileri
-        { roleId: 'KULLANICI', permissionId: 'request.create' },
-        { roleId: 'KULLANICI', permissionId: 'request.view_own' },
-        { roleId: 'KULLANICI', permissionId: 'product.view' }
-      ]
+      }
     };
-    
-    return defaultPermissions;
   };
 
   // Seçili rol için izin durumunu kontrol et
@@ -433,6 +370,75 @@ export function RolYonetimi() {
   // Rol adını getir
   const getRoleName = (roleId: Role): string => {
     return roles.find(r => r.id === roleId)?.name || roleId;
+  };
+
+  // Rol ekle
+  const handleAddRole = async (roleData: { id: string; name: string }) => {
+    try {
+      const response = await createRole(roleData);
+      if (response.success) {
+        // Rolleri yeniden yükle
+        const rolesResponse = await getRolesWithPermissions();
+        if (rolesResponse && rolesResponse.roles) {
+          setRoles(rolesResponse.roles.map(role => ({
+            id: role.id as Role,
+            name: role.name
+          })));
+        }
+        toast.success('Rol başarıyla eklendi');
+      } else {
+        toast.error(response.message || 'Rol eklenirken bir hata oluştu');
+      }
+    } catch (error) {
+      console.error('Rol ekleme hatası:', error);
+      toast.error('Rol eklenirken bir hata oluştu');
+    }
+  };
+
+  // Rol güncelle
+  const handleUpdateRole = async (roleData: { id: string; name: string }) => {
+    try {
+      const response = await updateRole(roleData);
+      if (response.success) {
+        // Rolleri yeniden yükle
+        const rolesResponse = await getRolesWithPermissions();
+        if (rolesResponse && rolesResponse.roles) {
+          setRoles(rolesResponse.roles.map(role => ({
+            id: role.id as Role,
+            name: role.name
+          })));
+        }
+        toast.success('Rol başarıyla güncellendi');
+      } else {
+        toast.error(response.message || 'Rol güncellenirken bir hata oluştu');
+      }
+    } catch (error) {
+      console.error('Rol güncelleme hatası:', error);
+      toast.error('Rol güncellenirken bir hata oluştu');
+    }
+  };
+
+  // Rol sil
+  const handleDeleteRole = async (roleId: string) => {
+    try {
+      const response = await deleteRole(roleId);
+      if (response.success) {
+        // Rolleri yeniden yükle
+        const rolesResponse = await getRolesWithPermissions();
+        if (rolesResponse && rolesResponse.roles) {
+          setRoles(rolesResponse.roles.map(role => ({
+            id: role.id as Role,
+            name: role.name
+          })));
+        }
+        toast.success('Rol başarıyla silindi');
+      } else {
+        toast.error(response.message || 'Rol silinirken bir hata oluştu');
+      }
+    } catch (error) {
+      console.error('Rol silme hatası:', error);
+      toast.error('Rol silinirken bir hata oluştu');
+    }
   };
 
   // Veriler yüklenene kadar yükleniyor durumu göster

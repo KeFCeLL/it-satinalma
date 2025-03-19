@@ -108,26 +108,75 @@ export function KullaniciDuzenle({ user, open, onOpenChange, onSuccess }: Kullan
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setLoading(true);
     try {
-      console.log("Kullanıcı güncelleme isteği gönderiliyor:", values);
+      // Geçici çözüm: Her istekte mock API modunu devre dışı bırak
+      localStorage.setItem('useMockApi', 'false');
+      
+      console.log("📝 Kullanıcı güncelleme isteği gönderiliyor:", values);
       
       // API çağrısı
       const response = await fetch(`/api/kullanicilar/${user.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+          'Pragma': 'no-cache',
+          'X-Force-No-Mock': 'true'
         },
         body: JSON.stringify(values),
         credentials: 'include'
       });
 
-      // Yanıtı kontrol et
+      // Detaylı loglama
+      console.log("📊 API yanıtı detayları:", {
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries()),
+        url: response.url
+      });
+      
+      let responseData;
+      try {
+        const responseText = await response.text();
+        console.log("📋 API yanıtı (raw):", responseText);
+        
+        try {
+          responseData = JSON.parse(responseText);
+          console.log("📋 API yanıtı (parsed):", responseData);
+        } catch (parseError) {
+          console.error("JSON parse hatası:", parseError);
+          throw new Error(`Sunucudan geçersiz JSON yanıtı: ${responseText.substring(0, 100)}...`);
+        }
+      } catch (error) {
+        console.error("API yanıtı okuma hatası:", error);
+        throw new Error("Sunucudan yanıt alınamadı");
+      }
+      
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Sunucu hatası: ${response.status}`);
+        const errorMessage = responseData?.error || responseData?.message || `Sunucu hatası: ${response.status} ${response.statusText}`;
+        console.error("❌ API hatası:", {
+          status: response.status,
+          message: errorMessage,
+          data: responseData
+        });
+        throw new Error(errorMessage);
       }
 
       // Başarılı yanıt
       toast.success(`${values.ad} ${values.soyad} kullanıcısı başarıyla güncellendi!`);
+      
+      // LocalStorage'ı güncelle
+      try {
+        const savedUsers = localStorage.getItem('it_satinalma_users');
+        if (savedUsers) {
+          const users = JSON.parse(savedUsers);
+          const updatedUsers = users.map((u: any) => 
+            u.id === user.id ? responseData.kullanici : u
+          );
+          localStorage.setItem('it_satinalma_users', JSON.stringify(updatedUsers));
+        }
+      } catch (storageError) {
+        console.error('LocalStorage güncelleme hatası:', storageError);
+      }
       
       if (onSuccess) {
         onSuccess();
@@ -144,7 +193,7 @@ export function KullaniciDuzenle({ user, open, onOpenChange, onSuccess }: Kullan
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>Kullanıcı Düzenle</DialogTitle>
           <DialogDescription>
@@ -281,17 +330,12 @@ export function KullaniciDuzenle({ user, open, onOpenChange, onSuccess }: Kullan
             </div>
             
             <DialogFooter>
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={() => onOpenChange(false)}
-                disabled={loading}
-              >
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 İptal
               </Button>
               <Button type="submit" disabled={loading}>
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Güncelle
+                Kaydet
               </Button>
             </DialogFooter>
           </form>

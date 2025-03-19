@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -25,17 +25,36 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
-import { RefreshCw, Search, UserCheck, KeyRound, Shield } from "lucide-react";
+import { RefreshCw, Search, UserCheck, KeyRound, Shield, Copy } from "lucide-react";
+import { getUsers } from "@/lib/services/user-service";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
-// Mock data
+// Kullanıcı tipi
 interface User {
   id: string;
   ad: string;
   soyad: string;
   email: string;
-  departman: string;
+  departman?: { id: string; ad: string };
   rol: string;
   selected?: boolean;
+}
+
+// API yanıt tipi
+interface PasswordResetResult {
+  userId: string;
+  email: string;
+  ad: string;
+  soyad: string;
+  newPassword: string;
+  success: boolean;
 }
 
 export function TopluIslemler() {
@@ -43,19 +62,59 @@ export function TopluIslemler() {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("reset-password");
   const [selectAll, setSelectAll] = useState(false);
-  const [users, setUsers] = useState<User[]>([
-    { id: "1", ad: "Ahmet", soyad: "Yılmaz", email: "ahmet.yilmaz@sirket.com", departman: "IT", rol: "IT_ADMIN" },
-    { id: "2", ad: "Mehmet", soyad: "Kaya", email: "mehmet.kaya@sirket.com", departman: "Finans", rol: "FINANS_ADMIN" },
-    { id: "3", ad: "Ayşe", soyad: "Demir", email: "ayse.demir@sirket.com", departman: "Satınalma", rol: "SATINALMA_ADMIN" },
-    { id: "4", ad: "Fatma", soyad: "Çelik", email: "fatma.celik@sirket.com", departman: "İnsan Kaynakları", rol: "DEPARTMAN_YONETICISI" },
-    { id: "5", ad: "Ali", soyad: "Şahin", email: "ali.sahin@sirket.com", departman: "Pazarlama", rol: "KULLANICI" },
-    { id: "6", ad: "Zeynep", soyad: "Öztürk", email: "zeynep.ozturk@sirket.com", departman: "Yönetim", rol: "ADMIN" },
-  ]);
+  const [users, setUsers] = useState<User[]>([]);
   const [selectedRole, setSelectedRole] = useState("");
   const [passwordLength, setPasswordLength] = useState(10);
   const [includeSpecialChars, setIncludeSpecialChars] = useState(true);
   const [includeNumbers, setIncludeNumbers] = useState(true);
   const [includeUppercase, setIncludeUppercase] = useState(true);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [resetResults, setResetResults] = useState<Array<{
+    ad: string;
+    soyad: string;
+    email: string;
+    newPassword: string;
+  }>>([]);
+
+  // Kullanıcıları getir
+  const fetchUsers = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch("/api/kullanicilar", {
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      let userList = [];
+      
+      if (data.kullanicilar) {
+        userList = data.kullanicilar;
+      } else if (data.data) {
+        userList = data.data;
+      } else if (Array.isArray(data)) {
+        userList = data;
+      }
+      
+      setUsers(userList.map((user: User) => ({
+        ...user,
+        selected: false
+      })));
+    } catch (error) {
+      console.error('Kullanıcılar yüklenirken hata:', error);
+      toast.error('Kullanıcılar yüklenirken bir hata oluştu');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Component yüklendiğinde kullanıcıları getir
+  useEffect(() => {
+    fetchUsers();
+  }, []);
 
   // Filtrelenmiş kullanıcılar
   const filteredUsers = users.filter(user => {
@@ -64,7 +123,7 @@ export function TopluIslemler() {
       user.ad.toLowerCase().includes(searchLower) ||
       user.soyad.toLowerCase().includes(searchLower) ||
       user.email.toLowerCase().includes(searchLower) ||
-      user.departman.toLowerCase().includes(searchLower) ||
+      user.departman?.ad.toLowerCase().includes(searchLower) ||
       user.rol.toLowerCase().includes(searchLower)
     );
   });
@@ -103,27 +162,58 @@ export function TopluIslemler() {
 
     setLoading(true);
     try {
-      // API isteği simülasyonu
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const response = await fetch("/api/kullanicilar/sifre-sifirla", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          userIds: selectedUsers.map(user => user.id),
+          options: {
+            length: passwordLength,
+            includeSpecialChars,
+            includeNumbers,
+            includeUppercase
+          }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
       
-      // Şifre seçenekleri
-      const passwordOptions = {
-        length: passwordLength,
-        includeSpecialChars,
-        includeNumbers,
-        includeUppercase
-      };
-      
-      toast.success(`${selectedUsers.length} kullanıcının şifresi başarıyla sıfırlandı ve e-posta ile bildirildi.`);
+      if (data.success && data.results) {
+        // API yanıtını modal için uygun formata dönüştür
+        const formattedResults = data.results.map((result: PasswordResetResult) => ({
+          ad: result.ad,
+          soyad: result.soyad,
+          email: result.email,
+          newPassword: result.newPassword
+        }));
+        
+        setResetResults(formattedResults);
+        setShowPasswordModal(true);
+        toast.success(`${formattedResults.length} kullanıcının şifresi başarıyla sıfırlandı.`);
+      }
       
       // Seçimleri temizle
       setUsers(users.map(user => ({ ...user, selected: false })));
       setSelectAll(false);
     } catch (error) {
+      console.error('Şifre sıfırlama hatası:', error);
       toast.error("Şifre sıfırlama işlemi sırasında bir hata oluştu.");
     } finally {
       setLoading(false);
     }
+  };
+
+  // Şifreyi kopyala
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success("Şifre kopyalandı!");
   };
 
   // Rol atama işlemi
@@ -141,19 +231,33 @@ export function TopluIslemler() {
 
     setLoading(true);
     try {
-      // API isteği simülasyonu
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const response = await fetch("/api/kullanicilar/rol-ata", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          userIds: selectedUsers.map(user => user.id),
+          rol: selectedRole
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
       
-      // Rolleri güncelle (UI için)
-      setUsers(users.map(user => 
-        user.selected ? { ...user, rol: selectedRole, selected: false } : user
-      ));
+      // Kullanıcı listesini güncelle
+      await fetchUsers();
       
       toast.success(`${selectedUsers.length} kullanıcıya "${selectedRole}" rolü başarıyla atandı.`);
       
       // Seçimleri temizle
       setSelectAll(false);
     } catch (error) {
+      console.error('Rol atama hatası:', error);
       toast.error("Rol atama işlemi sırasında bir hata oluştu.");
     } finally {
       setLoading(false);
@@ -228,7 +332,7 @@ export function TopluIslemler() {
                           <td className="p-2">{user.ad}</td>
                           <td className="p-2">{user.soyad}</td>
                           <td className="p-2">{user.email}</td>
-                          <td className="p-2">{user.departman}</td>
+                          <td className="p-2">{user.departman?.ad}</td>
                           <td className="p-2">{user.rol}</td>
                         </tr>
                       ))
@@ -368,6 +472,52 @@ export function TopluIslemler() {
           </Tabs>
         </CardContent>
       </Card>
+
+      {/* Şifre Sonuçları Modal */}
+      <Dialog open={showPasswordModal} onOpenChange={setShowPasswordModal}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Oluşturulan Şifreler</DialogTitle>
+            <DialogDescription>
+              Aşağıdaki kullanıcılar için oluşturulan yeni şifreler. Bu şifreleri güvenli bir yerde saklayın.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-4">
+            <div className="border rounded-md">
+              <ScrollArea className="h-[400px]">
+                <table className="w-full">
+                  <thead className="bg-muted/50 sticky top-0">
+                    <tr>
+                      <th className="p-2 text-left font-medium">Ad Soyad</th>
+                      <th className="p-2 text-left font-medium">E-posta</th>
+                      <th className="p-2 text-left font-medium">Yeni Şifre</th>
+                      <th className="p-2 text-left font-medium">İşlem</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {resetResults.map((result, index) => (
+                      <tr key={index} className="border-t hover:bg-muted/50">
+                        <td className="p-2">{result.ad} {result.soyad}</td>
+                        <td className="p-2">{result.email}</td>
+                        <td className="p-2 font-mono">{result.newPassword}</td>
+                        <td className="p-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => copyToClipboard(result.newPassword)}
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </ScrollArea>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 } 
