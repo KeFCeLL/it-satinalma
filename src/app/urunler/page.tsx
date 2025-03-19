@@ -66,38 +66,40 @@ export default function UrunlerPage() {
       const response = await fetch(
         `/api/urunler?sayfa=${sayfa}&sayfaBasina=${sayfaBasinaUrun}`
       );
+      
+      if (!response.ok) {
+        throw new Error('Ürünler yüklenirken bir hata oluştu');
+      }
+
       const data = await response.json();
       
       if (data.success) {
-        setUrunler(data.urunler || []); // Eğer urunler undefined ise boş dizi kullan
-        setToplamUrunSayisi(data.toplamUrunSayisi || 0); // Eğer toplamUrunSayisi undefined ise 0 kullan
+        setUrunler(Array.isArray(data.urunler) ? data.urunler : []);
+        setToplamUrunSayisi(typeof data.toplamUrunSayisi === 'number' ? data.toplamUrunSayisi : 0);
       } else {
-        setUrunler([]); // Hata durumunda boş dizi
-        setToplamUrunSayisi(0); // Hata durumunda 0
+        setUrunler([]);
+        setToplamUrunSayisi(0);
         toast.error('Ürünler yüklenirken bir hata oluştu');
       }
     } catch (error) {
       console.error('Ürünler getirilirken hata:', error);
-      setUrunler([]); // Hata durumunda boş dizi
-      setToplamUrunSayisi(0); // Hata durumunda 0
+      setUrunler([]);
+      setToplamUrunSayisi(0);
       toast.error('Ürünler yüklenirken bir hata oluştu');
     } finally {
       setYukleniyor(false);
     }
   };
 
-  // Sayfa değiştiğinde ürünleri getir
-  useEffect(() => {
-    fetchUrunler();
-  }, [sayfa, sayfaBasinaUrun]);
-
   // Kategorileri getir
   const fetchKategoriler = async () => {
     try {
       const response = await fetch('/api/urunler/kategoriler');
+      
       if (!response.ok) {
         throw new Error('Kategoriler yüklenirken bir hata oluştu');
       }
+
       const data = await response.json();
       
       if (data.success && Array.isArray(data.data)) {
@@ -113,10 +115,16 @@ export default function UrunlerPage() {
     }
   };
 
-  // Sayfa yüklendiğinde kategorileri getir
+  // Sayfa yüklendiğinde verileri getir
   useEffect(() => {
+    fetchUrunler();
     fetchKategoriler();
   }, []);
+
+  // Sayfa veya sayfa başına ürün sayısı değiştiğinde ürünleri getir
+  useEffect(() => {
+    fetchUrunler();
+  }, [sayfa, sayfaBasinaUrun]);
 
   // Kategori silme fonksiyonunu güncelle
   const handleDeleteKategori = async (kategori: string) => {
@@ -199,7 +207,7 @@ export default function UrunlerPage() {
               value={sayfaBasinaUrun.toString()}
               onValueChange={(value) => {
                 setSayfaBasinaUrun(parseInt(value));
-                setSayfa(1); // Sayfa başına ürün sayısı değiştiğinde ilk sayfaya dön
+                setSayfa(1);
               }}
             >
               <SelectTrigger className="w-[100px]">
@@ -220,7 +228,7 @@ export default function UrunlerPage() {
           <div className="flex justify-center items-center h-64">
             <Loader2 className="h-8 w-8 animate-spin" />
           </div>
-        ) : urunler.length === 0 ? (
+        ) : !Array.isArray(urunler) || urunler.length === 0 ? (
           <div className="flex justify-center items-center h-64 text-gray-500">
             Henüz ürün bulunmuyor
           </div>
