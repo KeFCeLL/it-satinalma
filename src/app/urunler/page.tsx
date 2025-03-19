@@ -185,7 +185,7 @@ export default function UrunlerPage() {
       setHata(null);
       console.log('Ürünler getiriliyor...');
       
-      const response = await fetch(`/api/urunler?sayfa=${sayfa}&sayfaBasina=${sayfaBasinaUrun}`);
+      const response = await fetch(`/api/urunler?sayfa=${sayfa}&sayfaBasi=${sayfaBasinaUrun}`);
       if (!response.ok) {
         throw new Error('Ürünler yüklenirken bir hata oluştu');
       }
@@ -248,12 +248,12 @@ export default function UrunlerPage() {
     loadData();
   }, []);
 
-  // Sayfa değiştiğinde ürünleri getir
+  // Sayfa veya sayfa başına ürün sayısı değiştiğinde ürünleri getir
   useEffect(() => {
     if (sayfa > 0) {
       fetchUrunler();
     }
-  }, [sayfa]);
+  }, [sayfa, sayfaBasinaUrun]);
 
   // Kategori silme işlemi
   const handleDeleteKategori = async (kategori: string) => {
