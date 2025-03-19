@@ -169,7 +169,7 @@ export default function UrunlerPage() {
   const [urunler, setUrunler] = useState<Urun[]>([]);
   const [toplamUrunSayisi, setToplamUrunSayisi] = useState(0);
   const [sayfa, setSayfa] = useState(1);
-  const [sayfaBasinaUrun] = useState(10);
+  const [sayfaBasinaUrun, setSayfaBasinaUrun] = useState(10);
   const [yukleniyor, setYukleniyor] = useState(true);
   const [hata, setHata] = useState<string | null>(null);
   const [kategoriSilmeModal, setKategoriSilmeModal] = useState({
@@ -333,6 +333,7 @@ export default function UrunlerPage() {
             <Select
               value={sayfaBasinaUrun.toString()}
               onValueChange={(value) => {
+                setSayfaBasinaUrun(Number(value));
                 setSayfa(1);
               }}
             >
