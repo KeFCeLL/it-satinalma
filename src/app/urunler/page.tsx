@@ -193,13 +193,12 @@ export default function UrunlerPage() {
       const data = await response.json();
       console.log('Ürünler yanıtı:', data);
 
-      if (!data || typeof data !== 'object') {
+      if (!data || !data.success || !Array.isArray(data.urunler)) {
         throw new Error('Geçersiz API yanıtı');
       }
 
-      const urunlerArray = Array.isArray(data.urunler) ? data.urunler : [];
-      setUrunler(urunlerArray);
-      setToplamUrunSayisi(typeof data.toplamUrunSayisi === 'number' ? data.toplamUrunSayisi : 0);
+      setUrunler(data.urunler);
+      setToplamUrunSayisi(data.toplamUrunSayisi || 0);
 
     } catch (error) {
       console.error('Ürünler getirilirken hata:', error);
@@ -225,15 +224,11 @@ export default function UrunlerPage() {
       const data = await response.json();
       console.log('Kategoriler yanıtı:', data);
       
-      if (!data || typeof data !== 'object') {
+      if (!data || !data.success || !Array.isArray(data.data)) {
         throw new Error('Geçersiz API yanıtı');
       }
 
-      const kategorilerArray = Array.isArray(data.kategoriler) ? data.kategoriler :
-                             Array.isArray(data.data) ? data.data : [];
-      
-      console.log('Yüklenen kategoriler:', kategorilerArray);
-      setKategoriler(kategorilerArray);
+      setKategoriler(data.data);
     } catch (error) {
       console.error('Kategoriler getirilirken hata:', error);
       setKategoriler([]);
