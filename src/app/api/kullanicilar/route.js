@@ -81,20 +81,6 @@ function logError(message, error = null) {
   }
 }
 
-// !!! KRİTİK ÇÖZÜM !!! Global IS_DEV_MODE değişkeni veya kendi false değerimizi kullan
-// UYARI: Bu değişken asla true olmamalı, aşağıdaki tüm kod bunun false olduğu varsayılarak yazılmıştır
-const IS_DEV_MODE = global.IS_DEV_MODE !== undefined ? global.IS_DEV_MODE : false;
-
-// Ortam değişkenlerini logla
-logInfo('Kullanıcılar API yükleniyor (Global değişken kullanılıyor)', {
-  NODE_ENV: process.env.NODE_ENV,
-  NEXT_PUBLIC_DEV_API: process.env.NEXT_PUBLIC_DEV_API,
-  DB_BYPASS: process.env.DB_BYPASS,
-  globalIsDev: global.IS_DEV_MODE,
-  localIsDev: IS_DEV_MODE,
-  message: "IS_DEV_MODE değişkeni KAPALI olarak ayarlandı"
-});
-
 // Kullanıcıları getir
 async function getKullanicilarHandler(request) {
   try {
@@ -107,102 +93,9 @@ async function getKullanicilarHandler(request) {
     const departmanId = searchParams.get('departmanId');
     const role = searchParams.get('role');
     const status = searchParams.get('status');
-    const _nocache = searchParams.get('_nocache'); // Önbelleği atlamak için
     
-    logInfo(`Kullanıcılar getiriliyor:`, { hepsi, sayfa, sayfaBasi, arama, departmanId, role, status, _nocache });
+    logInfo(`Kullanıcılar getiriliyor:`, { hepsi, sayfa, sayfaBasi, arama, departmanId, role, status });
     
-    // Geliştirme modu ise mock veri dön
-    if (IS_DEV_MODE) {
-      logInfo('🔧 Geliştirme modu aktif: IS_DEV_MODE=true', {
-        NODE_ENV: process.env.NODE_ENV,
-        NEXT_PUBLIC_DEV_API: process.env.NEXT_PUBLIC_DEV_API,
-        DB_BYPASS: process.env.DB_BYPASS
-      });
-      logInfo('Mock kullanıcı verileri döndürülüyor');
-      
-      // Filtreleme
-      let filteredKullanicilar = [...mockKullanicilar];
-      
-      // Arama filtresi
-      if (arama) {
-        const searchTerm = arama.toLowerCase();
-        filteredKullanicilar = filteredKullanicilar.filter(user => 
-          user.ad.toLowerCase().includes(searchTerm) || 
-          user.soyad.toLowerCase().includes(searchTerm) || 
-          user.email.toLowerCase().includes(searchTerm)
-        );
-      }
-      
-      // Departman filtresi
-      if (departmanId) {
-        filteredKullanicilar = filteredKullanicilar.filter(user => 
-          user.departmanId === departmanId
-        );
-      }
-      
-      // Rol filtresi
-      if (role) {
-        filteredKullanicilar = filteredKullanicilar.filter(user => 
-          user.role === role
-        );
-      }
-      
-      // Durum filtresi
-      if (status) {
-        filteredKullanicilar = filteredKullanicilar.filter(user => 
-          user.status === status
-        );
-      }
-      
-      // Tümünü getir
-      if (hepsi) {
-        logInfo(`Mock kullanıcılar dönülüyor (hepsi=true): ${filteredKullanicilar.length} adet kullanıcı`);
-        return NextResponse.json({
-          success: true,
-          kullanicilar: filteredKullanicilar,
-        }, { 
-          headers: {
-            'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
-            'Pragma': 'no-cache',
-            'Expires': '0',
-            'Surrogate-Control': 'no-store',
-            'Content-Type': 'application/json'
-          }
-        });
-      }
-      
-      // Toplam sayı
-      const toplam = filteredKullanicilar.length;
-      
-      // Sayfalama
-      const paginatedKullanicilar = filteredKullanicilar.slice(
-        (sayfa - 1) * sayfaBasi,
-        sayfa * sayfaBasi
-      );
-      
-      logInfo(`Mock kullanıcılar dönülüyor (sayfalı): ${paginatedKullanicilar.length} / ${toplam} adet kullanıcı`);
-      return NextResponse.json({
-        success: true,
-        kullanicilar: paginatedKullanicilar,
-        meta: {
-          toplam,
-          sayfaBasi,
-          mevcutSayfa: sayfa,
-          toplamSayfa: Math.ceil(toplam / sayfaBasi),
-        }
-      }, { 
-        headers: {
-          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
-          'Pragma': 'no-cache',
-          'Expires': '0',
-          'Surrogate-Control': 'no-store',
-          'Content-Type': 'application/json'
-        }
-      });
-    }
-    
-    logInfo(`Kullanıcılar API çağrısı - Parametreler:`, { hepsi, sayfa, sayfaBasi, arama, departmanId, role, status });
-
     try {
       // İlk olarak prisma'nın bağlı olup olmadığını kontrol et
       try {
@@ -214,7 +107,6 @@ async function getKullanicilarHandler(request) {
       }
       
       // Kullanıcıları getir
-      let kullanicilar;
       let where = {};
       
       // Arama filtresi
@@ -233,187 +125,70 @@ async function getKullanicilarHandler(request) {
       
       // Rol filtresi
       if (role) {
-        where.role = role;
+        where.rol = role;
       }
       
       // Durum filtresi
       if (status) {
-        where.status = status;
+        where.durum = status;
       }
       
       logInfo(`Kullanıcılar veritabanı sorgusu başlatılıyor: ${JSON.stringify(where)}`);
       
-      if (hepsi) {
-        // Tümünü getir
-        kullanicilar = await prisma.kullanici.findMany({
-          where,
-          include: {
-            departman: true,
-          },
-          orderBy: {
-            ad: 'asc',
-          },
-        });
-      } else {
-        // Sayfalama ile getir
-        kullanicilar = await prisma.kullanici.findMany({
-          where,
-          skip: (sayfa - 1) * sayfaBasi,
-          take: sayfaBasi,
-          include: {
-            departman: true,
-          },
-          orderBy: {
-            ad: 'asc',
-          },
-        });
-      }
-
-      // Hassas verileri temizle
-      kullanicilar = kullanicilar.map(user => {
-        const { password, ...userWithoutPassword } = user;
-        return userWithoutPassword;
-      });
-
-      logInfo(`Kullanıcılar API - başarıyla yüklendi, sonuç sayısı:`, kullanicilar.length);
+      // Toplam kayıt sayısını al
+      const toplam = await prisma.kullanici.count({ where });
       
-      // Eğer hiç kullanıcı dönmediyse, varsayılan kullanıcıları dön
-      if (!kullanicilar || kullanicilar.length === 0) {
-        logInfo('⚠️ Veritabanından hiç kullanıcı bulunamadı, varsayılan kullanıcıları döndürüyorum');
-        
-        return NextResponse.json({
-          success: true,
-          kullanicilar: mockKullanicilar,
-          _info: 'Veritabanından kullanıcı bulunamadığı için varsayılan değerler gösteriliyor.'
-        }, { 
-          headers: {
-            'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
-            'Pragma': 'no-cache',
-            'Expires': '0',
-            'Surrogate-Control': 'no-store',
-            'Content-Type': 'application/json'
+      // Kullanıcıları getir
+      const kullanicilar = await prisma.kullanici.findMany({
+        where,
+        include: {
+          departman: {
+            select: {
+              id: true,
+              ad: true
+            }
           }
-        });
-      }
-
+        },
+        skip: hepsi ? undefined : (sayfa - 1) * sayfaBasi,
+        take: hepsi ? undefined : sayfaBasi,
+        orderBy: {
+          createdAt: 'desc'
+        }
+      });
+      
+      logInfo(`Kullanıcılar başarıyla getirildi: ${kullanicilar.length} kayıt`);
+      
       return NextResponse.json({
         success: true,
-        kullanicilar: kullanicilar,
+        kullanicilar,
+        meta: hepsi ? undefined : {
+          toplam,
+          sayfaBasi,
+          mevcutSayfa: sayfa,
+          toplamSayfa: Math.ceil(toplam / sayfaBasi),
+        }
       }, { 
         headers: {
           'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
           'Pragma': 'no-cache',
           'Expires': '0',
-          'Surrogate-Control': 'no-store',
-          'Content-Type': 'application/json'
+          'Surrogate-Control': 'no-store'
         }
       });
-    } catch (dbError) {
-      logError('Veritabanı hatası:', dbError);
       
-      // Hata içeriyor mu kontrol et
-      if (dbError.code) {
-        logError(`Veritabanı hata kodu: ${dbError.code}`);
-      }
-      
-      if (dbError.meta) {
-        logError(`Veritabanı hata meta:`, dbError.meta);
-      }
-      
-      // Bağlantı hatası mı kontrol et
-      if (
-        dbError.message.includes('connection') || 
-        dbError.message.includes('network') ||
-        dbError.message.includes('timeout') ||
-        dbError.code === 'P1001' || 
-        dbError.code === 'P1002'
-      ) {
-        logError('Kritik veritabanı bağlantı hatası');
-        
-        // Bağlantı hatası durumunda varsayılan kullanıcıları dön
-        logInfo('⚠️ Veritabanı bağlantı hatası nedeniyle varsayılan kullanıcıları döndürüyorum');
-        
-        return NextResponse.json({
-          success: true,
-          kullanicilar: mockKullanicilar,
-          _devNote: 'Bu veri, veritabanı bağlantı hatası nedeniyle varsayılan değerlerden gelmektedir.'
-        }, { 
-          headers: {
-            'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
-            'Pragma': 'no-cache',
-            'Expires': '0',
-            'Surrogate-Control': 'no-store',
-            'Content-Type': 'application/json'
-          }
-        });
-      }
-      
-      // Yetki hatası mı kontrol et
-      if (dbError.code === 'P1010' || dbError.code === 'P1011') {
-        logError('Veritabanı yetkilendirme hatası');
-        
-        // Yetki hatası durumunda varsayılan kullanıcıları dön
-        logInfo('⚠️ Veritabanı yetki hatası nedeniyle varsayılan kullanıcıları döndürüyorum');
-        
-        return NextResponse.json({
-          success: true,
-          kullanicilar: mockKullanicilar,
-          _devNote: 'Bu veri, veritabanı yetki hatası nedeniyle varsayılan değerlerden gelmektedir.'
-        }, { 
-          headers: {
-            'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
-            'Pragma': 'no-cache',
-            'Expires': '0',
-            'Surrogate-Control': 'no-store',
-            'Content-Type': 'application/json'
-          }
-        });
-      }
-      
-      // Veritabanı hatası durumunda mock veri dön
-      logInfo('Veritabanı hatası nedeniyle mock veriye dönülüyor');
-      
-      return NextResponse.json({
-        success: true,
-        kullanicilar: mockKullanicilar,
-        _devNote: 'Bu veri, veritabanı hatası nedeniyle varsayılan değerlerden gelmektedir.'
-      }, { 
-        headers: {
-          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
-          'Pragma': 'no-cache',
-          'Expires': '0',
-          'Surrogate-Control': 'no-store',
-          'Content-Type': 'application/json'
-        }
-      });
+    } catch (error) {
+      logError("Kullanıcılar getirilirken bir hata oluştu:", error);
+      return NextResponse.json(
+        { success: false, message: "Kullanıcılar getirilirken bir hata oluştu", error: error.message },
+        { status: 500 }
+      );
     }
   } catch (error) {
-    logError('Kullanıcılar getirme hatası:', error);
-    
-    // Hata durumunda mockup kullanıcılar döndür
-    logInfo('🔧 Hata alındı: Varsayılan kullanıcı verileri döndürülüyor');
-    
-    return NextResponse.json({
-      success: true,
-      kullanicilar: mockKullanicilar,
-      _devNote: 'Bu veri bir hata sonrası varsayılan değerlerden gelmektedir.'
-    }, { 
-      headers: {
-        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
-        'Pragma': 'no-cache',
-        'Expires': '0',
-        'Surrogate-Control': 'no-store',
-        'Content-Type': 'application/json'
-      }
-    });
-  } finally {
-    if (!IS_DEV_MODE) {
-      try {
-        await prisma.$disconnect();
-      } catch (error) {
-        logError('Prisma bağlantı kapatma hatası:', error);
-      }
-    }
+    logError("İstek işlenirken bir hata oluştu:", error);
+    return NextResponse.json(
+      { success: false, message: "İstek işlenirken bir hata oluştu", error: error.message },
+      { status: 500 }
+    );
   }
 }
 
