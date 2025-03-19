@@ -215,8 +215,15 @@ export default function UrunlerPage() {
 
   // Sayfa yüklendiğinde verileri getir
   useEffect(() => {
-    fetchUrunler();
-    fetchKategoriler();
+    const loadData = async () => {
+      try {
+        await Promise.all([fetchUrunler(), fetchKategoriler()]);
+      } catch (error) {
+        console.error('Veriler yüklenirken hata:', error);
+        toast.error('Veriler yüklenirken bir hata oluştu');
+      }
+    };
+    loadData();
   }, []);
 
   // Sayfa veya sayfa başına ürün sayısı değiştiğinde ürünleri getir
