@@ -160,7 +160,7 @@ export default function UrunlerPage() {
   // Ürünleri getir
   const fetchUrunler = async () => {
     try {
-      setYukleniyor(true);
+      console.log('Ürünler getiriliyor...');
       const response = await fetch(
         `/api/urunler?sayfa=${sayfa}&sayfaBasina=${sayfaBasinaUrun}`
       );
@@ -170,11 +170,14 @@ export default function UrunlerPage() {
       }
 
       const data = await response.json();
+      console.log('Ürünler yanıtı:', data);
       
       if (data.success) {
+        console.log('Ürünler başarıyla yüklendi:', data.urunler);
         setUrunler(Array.isArray(data.urunler) ? data.urunler : []);
         setToplamUrunSayisi(typeof data.toplamUrunSayisi === 'number' ? data.toplamUrunSayisi : 0);
       } else {
+        console.error('Ürünler yanıtı geçersiz:', data);
         setUrunler([]);
         setToplamUrunSayisi(0);
         toast.error('Ürünler yüklenirken bir hata oluştu');
@@ -192,6 +195,7 @@ export default function UrunlerPage() {
   // Kategorileri getir
   const fetchKategoriler = async () => {
     try {
+      console.log('Kategoriler getiriliyor...');
       const response = await fetch('/api/urunler/kategoriler');
       
       if (!response.ok) {
@@ -199,10 +203,13 @@ export default function UrunlerPage() {
       }
 
       const data = await response.json();
+      console.log('Kategoriler yanıtı:', data);
       
       if (data.success && Array.isArray(data.data)) {
+        console.log('Kategoriler başarıyla yüklendi:', data.data);
         setKategoriler(data.data);
       } else {
+        console.error('Kategoriler yanıtı geçersiz:', data);
         setKategoriler([]);
         toast.error('Kategoriler yüklenirken bir hata oluştu');
       }
