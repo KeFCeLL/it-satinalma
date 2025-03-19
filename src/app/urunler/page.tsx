@@ -15,6 +15,26 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+// Custom ErrorBoundary component
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true };
+  }
+  componentDidCatch(error: any, errorInfo: any) {
+    console.error('ErrorBoundary caught an error', error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return <div>Bir hata oluştu, lütfen sayfayı yenileyin.</div>;
+    }
+    return this.props.children;
+  }
+}
+
 // Kullanıcı tipi tanımı
 interface Kullanici {
   id: string;
@@ -162,17 +182,12 @@ export default function UrunlerPage() {
     try {
       setYukleniyor(true);
       console.log('Ürünler getiriliyor...');
-      const response = await fetch(
-        `/api/urunler?sayfa=${sayfa}&sayfaBasina=${sayfaBasinaUrun}`
-      );
-      
+      const response = await fetch(`/api/urunler?sayfa=${sayfa}&sayfaBasina=${sayfaBasinaUrun}`);
       if (!response.ok) {
         throw new Error('Ürünler yüklenirken bir hata oluştu');
       }
-
       const data = await response.json();
       console.log('Ürünler yanıtı:', data);
-      
       if (data && data.success && Array.isArray(data.urunler)) {
         console.log('Ürünler başarıyla yüklendi:', data.urunler);
         setUrunler(data.urunler);
@@ -180,7 +195,7 @@ export default function UrunlerPage() {
       } else if (data && Array.isArray(data.urunler)) {
         console.log('Ürünler başarıyla yüklendi (alternatif format):', data.urunler);
         setUrunler(data.urunler);
-        setToplamUrunSayisi(typeof data.toplamUrun === 'number' ? data.toplamUrun : 
+        setToplamUrunSayisi(typeof data.toplamUrun === 'number' ? data.toplamUrun :
                             typeof data.toplam === 'number' ? data.toplam : data.urunler.length);
       } else {
         console.error('Ürünler yanıtı geçersiz:', data);
@@ -321,6 +336,7 @@ export default function UrunlerPage() {
 
   return (
     <div className="container mx-auto py-10">
+      {(() => { console.log('Current urunler:', urunler); return null; })()}
       {/* Ürün Listesi */}
       <div className="space-y-4">
         <div className="flex justify-between items-center">
@@ -358,31 +374,30 @@ export default function UrunlerPage() {
           </div>
         ) : (
           <>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Ürün Adı</TableHead>
-                  <TableHead>Kategori</TableHead>
-                  <TableHead>Birim Fiyat</TableHead>
-                  <TableHead>Birim</TableHead>
-                  <TableHead>Açıklama</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {urunler.map((urun) => (
-                  <TableRow key={urun?.id || 'unknown'}>
-                    <TableCell>{urun?.ad || '-'}</TableCell>
-                    <TableCell>{urun?.kategori || '-'}</TableCell>
-                    <TableCell>{urun?.birimFiyat ? urun.birimFiyat.toLocaleString('tr-TR', {
-                      style: 'currency',
-                      currency: 'TRY'
-                    }) : '-'}</TableCell>
-                    <TableCell>{urun?.birim || '-'}</TableCell>
-                    <TableCell>{urun?.aciklama || '-'}</TableCell>
+            <ErrorBoundary>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Ürün Adı</TableHead>
+                    <TableHead>Kategori</TableHead>
+                    <TableHead>Birim Fiyat</TableHead>
+                    <TableHead>Birim</TableHead>
+                    <TableHead>Açıklama</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {React.Children.toArray((urunler || []).map((urun) => (
+                    <TableRow key={urun?.id || 'unknown'}>
+                      <TableCell>{urun?.ad || '-'}</TableCell>
+                      <TableCell>{urun?.kategori || '-'}</TableCell>
+                      <TableCell>{urun?.birimFiyat ? urun.birimFiyat.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' }) : '-'}</TableCell>
+                      <TableCell>{urun?.birim || '-'}</TableCell>
+                      <TableCell>{urun?.aciklama || '-'}</TableCell>
+                    </TableRow>
+                  )))}
+                </TableBody>
+              </Table>
+            </ErrorBoundary>
 
             {/* Sayfalama */}
             {toplamUrunSayisi > 0 && (
@@ -399,7 +414,7 @@ export default function UrunlerPage() {
                 </span>
                 <Button
                   variant="outline"
-                  onClick={() => setSayfa(s => Math.min(toplamSayfa || 1, s + 1))}
+                  onClick={() => setSayfa(s => Math.min((toplamSayfa || 1), s + 1))}
                   disabled={sayfa === toplamSayfa || toplamSayfa === 0}
                 >
                   Sonraki
