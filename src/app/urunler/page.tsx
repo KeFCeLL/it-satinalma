@@ -97,10 +97,14 @@ export default function UrunlerPage() {
       const response = await fetch('/api/urunler/kategoriler');
       const data = await response.json();
       if (data.success) {
-        setKategoriler(data.data);
+        setKategoriler(data.data || []); // Eğer data undefined ise boş dizi kullan
+      } else {
+        setKategoriler([]); // Hata durumunda boş dizi
+        toast.error('Kategoriler yüklenirken bir hata oluştu');
       }
     } catch (error) {
       console.error('Kategoriler getirilirken hata:', error);
+      setKategoriler([]); // Hata durumunda boş dizi
       toast.error('Kategoriler yüklenirken bir hata oluştu');
     }
   };
@@ -289,13 +293,19 @@ export default function UrunlerPage() {
                   <SelectValue placeholder="Kategori seçin" />
                 </SelectTrigger>
                 <SelectContent>
-                  {kategoriler
-                    .filter(k => k !== silinecekKategori)
-                    .map((kategori) => (
-                      <SelectItem key={kategori} value={kategori}>
-                        {kategori}
-                      </SelectItem>
-                    ))}
+                  {kategoriler && kategoriler.length > 0 ? (
+                    kategoriler
+                      .filter(k => k !== silinecekKategori)
+                      .map((kategori) => (
+                        <SelectItem key={kategori} value={kategori}>
+                          {kategori}
+                        </SelectItem>
+                      ))
+                  ) : (
+                    <SelectItem value="" disabled>
+                      Kategori bulunamadı
+                    </SelectItem>
+                  )}
                 </SelectContent>
               </Select>
             </div>
