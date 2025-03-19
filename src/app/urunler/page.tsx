@@ -334,6 +334,9 @@ export default function UrunlerPage() {
   // Toplam sayfa sayısını hesapla
   const toplamSayfa = Math.ceil(toplamUrunSayisi / sayfaBasinaUrun);
 
+  // Add safeUrunler variable to ensure we always have an array
+  const safeUrunler = Array.isArray(urunler) ? urunler : [];
+
   return (
     <div className="container mx-auto py-10">
       {(() => { console.log('Current urunler:', urunler); return null; })()}
@@ -368,7 +371,7 @@ export default function UrunlerPage() {
           <div className="flex justify-center items-center h-64">
             <Loader2 className="h-8 w-8 animate-spin" />
           </div>
-        ) : !urunler || !Array.isArray(urunler) || urunler.length === 0 ? (
+        ) : safeUrunler.length === 0 ? (
           <div className="flex justify-center items-center h-64 text-gray-500">
             Henüz ürün bulunmuyor
           </div>
@@ -386,7 +389,7 @@ export default function UrunlerPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {React.Children.toArray((urunler || []).map((urun) => (
+                  {Array.isArray(safeUrunler) ? safeUrunler.map((urun) => (
                     <TableRow key={urun?.id || 'unknown'}>
                       <TableCell>{urun?.ad || '-'}</TableCell>
                       <TableCell>{urun?.kategori || '-'}</TableCell>
@@ -394,7 +397,7 @@ export default function UrunlerPage() {
                       <TableCell>{urun?.birim || '-'}</TableCell>
                       <TableCell>{urun?.aciklama || '-'}</TableCell>
                     </TableRow>
-                  )))}
+                  )) : null}
                 </TableBody>
               </Table>
             </ErrorBoundary>
@@ -409,9 +412,7 @@ export default function UrunlerPage() {
                 >
                   Önceki
                 </Button>
-                <span className="text-sm">
-                  Sayfa {sayfa} / {toplamSayfa || 1}
-                </span>
+                <span className="text-sm">Sayfa {sayfa} / {toplamSayfa || 1}</span>
                 <Button
                   variant="outline"
                   onClick={() => setSayfa(s => Math.min((toplamSayfa || 1), s + 1))}
