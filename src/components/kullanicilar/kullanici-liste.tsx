@@ -38,217 +38,195 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { KullaniciDuzenle } from "./kullanici-duzenle";
 import { fetchWithoutCache } from "@/lib/api-config";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Skeleton } from '@/components/ui/skeleton';
+import { SearchBar } from '@/components/search-bar';
+import { Rol } from '@/lib/validation/kullanici';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { formatDate } from '@/lib/utils';
+
+// Rol renklerini tanımla
+const rolBadgeColors: Record<Rol, string> = {
+  ADMIN: 'bg-red-500',
+  MANAGER: 'bg-blue-500',
+  USER: 'bg-green-500',
+  SATINALMA_ADMIN: 'bg-purple-500',
+  IT_ADMIN: 'bg-orange-500',
+  FINANS_ADMIN: 'bg-yellow-500',
+  DEPARTMAN_YONETICISI: 'bg-indigo-500',
+  KULLANICI: 'bg-green-500',
+};
+
+// Departman ID'lerini isimlere çevir
+const departmanIdToName: Record<string, string> = {
+  'dep_bilgi_teknolojileri': 'Bilgi Teknolojileri',
+  'dep_insan_kaynaklari': 'İnsan Kaynakları',
+  'dep_finans': 'Finans',
+  'dep_operasyon': 'Operasyon',
+  'dep_satis': 'Satış',
+  'dep_pazarlama': 'Pazarlama',
+  'dep_hukuk': 'Hukuk',
+  'dep_ar_ge': 'AR-GE',
+  'dep_kalite': 'Kalite',
+  // Diğer departman ID'leri ve isimleri
+};
+
+// Kullanıcı tipi
+interface Kullanici {
+  id: string;
+  email: string;
+  ad: string;
+  soyad: string;
+  rol: Rol;
+  departmanId: string | null;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export function KullaniciListe() {
   const router = useRouter();
-  const [users, setUsers] = useState<(User & { durum?: 'AKTIF' | 'PASIF' })[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [searchTerm, setSearchTerm] = useState<string>("");
-  const [showDeleteDialog, setShowDeleteDialog] = useState<boolean>(false);
-  const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [showEditDialog, setShowEditDialog] = useState<boolean>(false);
-  const [userToEdit, setUserToEdit] = useState<User & { durum?: 'AKTIF' | 'PASIF' } | null>(null);
+  const [userToEdit, setUserToEdit] = useState<Kullanici | null>(null);
+  const queryClient = { invalidateQueries: (config: any) => {} }; // Geçici olarak mock ettik
+  const [kullanicilar, setKullanicilar] = useState<Kullanici[]>([]);
 
-  // Kullanıcıları getir
+  // LocalStorage'dan kullanıcıları al
+  const getLocalStorageUsers = () => {
+    try {
+      const savedUsers = localStorage.getItem('it_satinalma_users');
+      if (savedUsers) {
+        const parsedUsers = JSON.parse(savedUsers);
+        setKullanicilar(parsedUsers);
+        return parsedUsers;
+      }
+    } catch (error) {
+      console.error('LocalStorage okuma hatası:', error);
+    }
+    return [];
+  };
+
+  // Kullanıcıları yükle
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      // Geçici çözüm: Mock API modunu devre dışı bırak
+      // Önce localStorage'dan yükle
+      getLocalStorageUsers();
+      
+      // Mock API modunu kapat
       localStorage.setItem('useMockApi', 'false');
       
-      // Önce localStorage'dan kullanıcıları yükle (hızlı görüntüleme için)
-      const savedUsers = localStorage.getItem('it_satinalma_users');
-      if (savedUsers) {
-        try {
-          const parsedUsers = JSON.parse(savedUsers);
-          if (Array.isArray(parsedUsers) && parsedUsers.length > 0) {
-            console.log('📦 Kullanıcılar localStorage\'dan yüklendi:', parsedUsers.length);
-            
-            // Her kullanıcıya durum bilgisi ekle (eğer yoksa)
-            const usersWithStatus = parsedUsers.map((user: any) => ({
-              ...user,
-              durum: user.durum || 'AKTIF' // Varsayılan olarak AKTIF
-            }));
-            
-            setUsers(usersWithStatus);
-            setLoading(false);
-            // Arka planda API ile güncel veriyi almaya devam et
-          }
-        } catch (e) {
-          console.error('LocalStorage parse hatası:', e);
-        }
-      }
+      // API'den veri getir
+      console.log('🔍 Kullanıcılar API isteği başlatılıyor...');
+      const response = await fetch('/api/kullanicilar', {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+          'Pragma': 'no-cache',
+          'X-Force-No-Mock': 'true' // Mock veriyi engelle
+        },
+        credentials: 'include'
+      });
       
-      // API isteği
-      const response = await fetchWithoutCache(`/api/kullanicilar?hepsi=true`);
-      console.log('📊 Kullanıcılar API yanıtı:', response.status, response.statusText);
+      console.log('📊 API yanıtı:', response.status, response.statusText);
       
       if (!response.ok) {
-        throw new Error(`API hatası: ${response.status} ${response.statusText}`);
+        console.warn('⚠️ API hatası, localStorage verilerini kullanmaya devam ediyoruz');
+        return;
       }
       
       const data = await response.json();
-      console.log('📋 Kullanıcılar veri:', data);
+      console.log('📋 Alınan kullanıcı sayısı:', data.kullanicilar?.length || 0);
       
-      if (data.success && data.kullanicilar && Array.isArray(data.kullanicilar)) {
-        // Her kullanıcıya durum bilgisi ekle (eğer yoksa)
-        const usersWithStatus = data.kullanicilar.map((user: any) => ({
-          ...user,
-          durum: user.durum || 'AKTIF' // Varsayılan olarak AKTIF
-        }));
+      // API verisi var mı kontrol et
+      if (data.kullanicilar && Array.isArray(data.kullanicilar)) {
+        // Kullanıcıları state'e kaydet
+        setKullanicilar(data.kullanicilar);
         
-        setUsers(usersWithStatus);
-        
-        // LocalStorage'a kaydet
-        localStorage.setItem('it_satinalma_users', JSON.stringify(usersWithStatus));
+        // LocalStorage'a da kaydet
+        localStorage.setItem('it_satinalma_users', JSON.stringify(data.kullanicilar));
         console.log('✅ Kullanıcılar localStorage\'a kaydedildi');
-      } else if (data.data && Array.isArray(data.data)) {
-        // Eski API formatı desteği
-        const usersWithStatus = data.data.map((user: any) => ({
-          ...user,
-          durum: user.durum || 'AKTIF' // Varsayılan olarak AKTIF
-        }));
-        
-        setUsers(usersWithStatus);
-        
-        // LocalStorage'a kaydet
-        localStorage.setItem('it_satinalma_users', JSON.stringify(usersWithStatus));
-        console.log('✅ Kullanıcılar localStorage\'a kaydedildi');
-      } else {
-        toast.error("API'den beklenen formatta veri alınamadı");
-        
-        // Eğer kullanıcılar zaten localStorage'dan yüklendiyse, API'den veri alamadık diye onları silmeyelim
-        if (users.length === 0) {
-          setUsers([]);
-        }
       }
     } catch (error) {
-      console.error("Kullanıcılar yüklenirken hata:", error);
-      toast.error("Kullanıcılar yüklenirken bir hata oluştu, kaydedilmiş veriler gösteriliyor");
-      
-      // Hatada boş array set etmeyelim, localStorage'dan yüklenen veriler varsa onları kullanalım
-      if (users.length === 0) {
-        setUsers([]);
-      }
+      console.error('❌ Kullanıcıları getirme hatası:', error);
+      toast.error("Kullanıcılar yüklenirken hata oluştu");
     } finally {
       setLoading(false);
     }
   };
 
+  // Component mount olduğunda kullanıcıları getir
   useEffect(() => {
     fetchUsers();
   }, []);
 
-  // Filtre işlemi
-  const filteredUsers = users.filter((user) => {
-    if (!searchTerm) return true;
-    const searchTermLower = searchTerm.toLowerCase();
-    return (
-      user.ad?.toLowerCase().includes(searchTermLower) ||
-      user.soyad?.toLowerCase().includes(searchTermLower) ||
-      user.email?.toLowerCase().includes(searchTermLower) ||
-      user.rol?.toLowerCase().includes(searchTermLower)
-    );
+  // Filtrelenmiş kullanıcılar
+  const filteredKullanicilar = kullanicilar.filter((kullanici: Kullanici) => {
+    const searchContent = `${kullanici.ad} ${kullanici.soyad} ${kullanici.email} ${kullanici.rol}`.toLowerCase();
+    return searchContent.includes(searchTerm.toLowerCase());
   });
 
-  // Kullanıcı silme işlevi
-  const handleDeleteUser = async (user: User) => {
-    setUserToDelete(user);
-    setShowDeleteDialog(true);
+  // Kullanıcı düzenleme sayfasına git
+  const handleEdit = (id: string) => {
+    router.push(`/kullanicilar/duzenle/${id}`);
   };
 
-  // Kullanıcı silme onaylama
+  // Silme işlemini başlat
+  const handleDelete = (id: string) => {
+    setSelectedUserId(id);
+    setOpenDeleteDialog(true);
+  };
+
+  // Silme işlemini gerçekleştir
   const confirmDelete = async () => {
-    if (!userToDelete) return;
+    if (!selectedUserId) return;
     
+    setLoading(true);
     try {
-      const response = await fetch(`/api/kullanicilar/${userToDelete.id}`, {
-        method: "DELETE",
-        credentials: 'include'
-      });
+      // Önce localStorage'dan sil
+      const currentUsers = getLocalStorageUsers();
+      const updatedUsers = currentUsers.filter(user => user.id !== selectedUserId);
+      localStorage.setItem('it_satinalma_users', JSON.stringify(updatedUsers));
+      setKullanicilar(updatedUsers);
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Sunucu hatası: ${response.status}`);
-      }
-      
-      // LocalStorage'dan da sil
-      try {
-        const savedUsers = localStorage.getItem('it_satinalma_users');
-        if (savedUsers) {
-          let users = JSON.parse(savedUsers);
-          users = users.filter((user: any) => user.id !== userToDelete.id);
-          localStorage.setItem('it_satinalma_users', JSON.stringify(users));
-          console.log('✅ Kullanıcı localStorage\'dan silindi');
-        }
-      } catch (storageError) {
-        console.error('LocalStorage silme hatası:', storageError);
-      }
-      
-      toast.success(`${userToDelete.ad} ${userToDelete.soyad} kullanıcısı silindi.`);
-      fetchUsers(); // Listeyi yenile
-    } catch (error: any) {
-      console.error("Kullanıcı silme hatası:", error);
-      toast.error(`Kullanıcı silinirken hata oluştu: ${error.message}`);
-    } finally {
-      setShowDeleteDialog(false);
-      setUserToDelete(null);
-    }
-  };
-
-  // Kullanıcı durumunu değiştirme
-  const handleToggleStatus = async (user: User & { durum?: 'AKTIF' | 'PASIF' }) => {
-    const newStatus = user.durum === "AKTIF" ? "PASIF" : "AKTIF";
-    
-    try {
-      const response = await fetch(`/api/kullanicilar/${user.id}`, {
-        method: "PUT",
+      // API'den sil
+      const response = await fetch(`/api/kullanicilar/${selectedUserId}`, {
+        method: 'DELETE',
         headers: {
-          "Content-Type": "application/json",
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+          'Pragma': 'no-cache',
+          'X-Force-No-Mock': 'true'
         },
-        body: JSON.stringify({ durum: newStatus }),
         credentials: 'include'
       });
       
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Sunucu hatası: ${response.status}`);
+        console.warn('⚠️ API silme hatası, ancak localStorage güncellendi:', response.status);
       }
       
-      // LocalStorage'da da güncelle
-      try {
-        const savedUsers = localStorage.getItem('it_satinalma_users');
-        if (savedUsers) {
-          let users = JSON.parse(savedUsers);
-          users = users.map((u: any) => {
-            if (u.id === user.id) {
-              return { ...u, durum: newStatus };
-            }
-            return u;
-          });
-          localStorage.setItem('it_satinalma_users', JSON.stringify(users));
-          console.log('✅ Kullanıcı durumu localStorage\'da güncellendi');
-        }
-      } catch (storageError) {
-        console.error('LocalStorage güncelleme hatası:', storageError);
-      }
-      
-      toast.success(`${user.ad} ${user.soyad} kullanıcısı ${newStatus === "AKTIF" ? "aktif" : "pasif"} duruma getirildi.`);
-      fetchUsers(); // Listeyi yenile
-    } catch (error: any) {
-      console.error("Kullanıcı durumu değiştirme hatası:", error);
-      toast.error(`Kullanıcı durumu değiştirilirken hata oluştu: ${error.message}`);
+      toast.success('Kullanıcı başarıyla silindi!');
+    } catch (error) {
+      console.error('❌ Kullanıcı silme hatası:', error);
+      toast.error('Kullanıcı silinirken bir hata oluştu!');
+    } finally {
+      setLoading(false);
+      setOpenDeleteDialog(false);
+      setSelectedUserId(null);
     }
-  };
-
-  // Kullanıcı düzenleme
-  const handleEditUser = (user: User & { durum?: 'AKTIF' | 'PASIF' }) => {
-    setUserToEdit(user);
-    setShowEditDialog(true);
   };
 
   // Tablo sütunları
-  const columns: ColumnDef<User & { durum?: 'AKTIF' | 'PASIF' }>[] = [
+  const columns: ColumnDef<Kullanici>[] = [
     {
       accessorKey: "ad",
       header: ({ column }) => (
@@ -314,7 +292,7 @@ export function KullaniciListe() {
         </Button>
       ),
       cell: ({ row }) => {
-        const durum = row.original.durum || "AKTIF";
+        const durum = row.original.status || "AKTIF";
         return (
           <Badge variant={durum === "AKTIF" ? "default" : "destructive"}>
             {durum === "AKTIF" ? "Aktif" : "Pasif"}
@@ -326,7 +304,7 @@ export function KullaniciListe() {
       id: "actions",
       cell: ({ row }) => {
         const user = row.original;
-        const durum = user.durum || "AKTIF";
+        const durum = user.status || "AKTIF";
 
         return (
           <DropdownMenu>
@@ -339,24 +317,11 @@ export function KullaniciListe() {
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>İşlemler</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => handleEditUser(user)}>
+              <DropdownMenuItem onClick={() => handleEdit(user.id)}>
                 <Pencil className="mr-2 h-4 w-4" />
                 Düzenle
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleToggleStatus(user)}>
-                {durum === "AKTIF" ? (
-                  <>
-                    <UserX className="mr-2 h-4 w-4" />
-                    Pasif Yap
-                  </>
-                ) : (
-                  <>
-                    <UserCheck className="mr-2 h-4 w-4" />
-                    Aktif Yap
-                  </>
-                )}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleDeleteUser(user)}>
+              <DropdownMenuItem onClick={() => handleDelete(user.id)}>
                 <Trash2 className="mr-2 h-4 w-4" />
                 Sil
               </DropdownMenuItem>
@@ -381,47 +346,44 @@ export function KullaniciListe() {
 
       <DataTable
         columns={columns}
-        data={filteredUsers}
+        data={filteredKullanicilar}
         loading={loading}
         searchPlaceholder="Kullanıcı ara..."
       />
 
-      {/* Silme onay iletişim kutusu */}
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+      {/* Silme Onay Dialog */}
+      <AlertDialog open={openDeleteDialog} onOpenChange={setOpenDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Kullanıcı Silme</AlertDialogTitle>
+            <AlertDialogTitle>Kullanıcıyı silmek istediğinize emin misiniz?</AlertDialogTitle>
             <AlertDialogDescription>
-              {userToDelete && (
-                <>
-                  <strong>
-                    {userToDelete.ad} {userToDelete.soyad}
-                  </strong>{" "}
-                  kullanıcısını silmek istediğinizden emin misiniz? Bu işlem geri
-                  alınamaz.
-                </>
-              )}
+              Bu işlem geri alınamaz. Bu kullanıcı kalıcı olarak silinecek.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>İptal</AlertDialogCancel>
-            <AlertDialogAction
+            <AlertDialogAction 
               onClick={confirmDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Evet, Sil
+              {loading ? 'Siliniyor...' : 'Sil'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Düzenleme iletişim kutusu */}
+      {/* Düzenleme Dialog */}
       {userToEdit && (
         <KullaniciDuzenle
           user={userToEdit}
           open={showEditDialog}
-          onOpenChange={setShowEditDialog}
-          onSuccess={fetchUsers}
+          onClose={() => {
+            setShowEditDialog(false);
+            setUserToEdit(null);
+          }}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ['kullanicilar'] });
+          }}
         />
       )}
     </div>

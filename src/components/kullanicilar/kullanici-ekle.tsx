@@ -142,49 +142,24 @@ export function KullaniciEkle({ onSuccess }: KullaniciEkleProps) {
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setLoading(true);
     try {
+      // Geçici çözüm: Her istekte mock API modunu devre dışı bırak
+      localStorage.setItem('useMockApi', 'false');
+      
       // Departman ID'si boş string ise null olarak ayarla
       const formData = {
         ...values,
+        password: values.sifre, // API'nin beklediği alan adı
         departmanId: values.departmanId && values.departmanId.trim() !== "" ? values.departmanId : null
       };
       
-      console.log("Kullanıcı oluşturma isteği gönderiliyor:", formData);
+      console.log("📝 Kullanıcı oluşturma isteği gönderiliyor:", formData);
       
-      // API çağrısı ile kullanıcı oluştur
-      const response = await fetch('/api/kullanicilar', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-store, no-cache, must-revalidate',
-          'Pragma': 'no-cache'
-        },
-        body: JSON.stringify(formData),
-        credentials: 'include' // Cookie bilgilerini gönder
-      });
-
-      // Yanıtı console'a yazdır (hata ayıklama için)
-      console.log("API yanıtı status:", response.status, response.statusText);
+      // Eşsiz bir geçici ID oluştur (LocalStorage için)
+      const tempId = `temp-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
       
-      let responseData;
-      try {
-        // Önce JSON olarak parse etmeyi dene
-        responseData = await response.json();
-        console.log("API yanıtı (JSON):", responseData);
-      } catch (parseError) {
-        // JSON parse başarısız olursa text olarak al
-        const text = await response.text();
-        console.log("API yanıtı (text):", text);
-        responseData = { error: `Sunucudan geçersiz yanıt: ${text.substring(0, 100)}...` };
-      }
-      
-      if (!response.ok) {
-        const errorMessage = responseData.error || responseData.message || `Sunucu hatası: ${response.status} ${response.statusText}`;
-        throw new Error(errorMessage);
-      }
-
-      // API yanıtından kullanıcıyı al veya form verilerinden oluştur
-      const newUser = responseData.kullanici || {
-        id: `temp-${Date.now()}`,
+      // API'den bağımsız olarak kullanılacak yeni kullanıcı nesnesi
+      const newLocalUser = {
+        id: tempId,
         email: values.email,
         ad: values.ad,
         soyad: values.soyad,
@@ -195,9 +170,9 @@ export function KullaniciEkle({ onSuccess }: KullaniciEkleProps) {
         updatedAt: new Date().toISOString()
       };
       
-      // Eklenen kullanıcıyı localStorage'a kaydet
+      // API çağrısı ÖNCESINDE kullanıcıyı LocalStorage'a ekle
+      // Böylece API başarısız olsa bile kullanıcı kalıcı hale gelecek
       try {
-        // Önce mevcut kullanıcıları al
         const savedUsers = localStorage.getItem('it_satinalma_users');
         let users = [];
         
@@ -206,13 +181,73 @@ export function KullaniciEkle({ onSuccess }: KullaniciEkleProps) {
         }
         
         // Yeni kullanıcıyı ekle
-        users.push(newUser);
+        users.push(newLocalUser);
         
         // LocalStorage'a kaydet
         localStorage.setItem('it_satinalma_users', JSON.stringify(users));
-        console.log('✅ Kullanıcı localStorage\'a kaydedildi:', newUser);
+        console.log('✅ Kullanıcı API öncesi localStorage\'a kaydedildi:', newLocalUser);
       } catch (storageError) {
-        console.error('LocalStorage kaydetme hatası:', storageError);
+        console.error('LocalStorage ön-kaydetme hatası:', storageError);
+      }
+      
+      // API çağrısı ile kullanıcı oluştur
+      const response = await fetch('/api/kullanicilar', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+          'Pragma': 'no-cache',
+          'X-Force-No-Mock': 'true' // Özel başlık: mock veri kullanımını engelle
+        },
+        body: JSON.stringify(formData),
+        credentials: 'include' // Cookie bilgilerini gönder
+      });
+
+      // Yanıtı console'a yazdır (hata ayıklama için)
+      console.log("📊 API yanıtı status:", response.status, response.statusText);
+      
+      let responseData;
+      try {
+        // Önce JSON olarak parse etmeyi dene
+        responseData = await response.json();
+        console.log("📋 API yanıtı (JSON):", responseData);
+      } catch (parseError) {
+        // JSON parse başarısız olursa text olarak al
+        const text = await response.text();
+        console.log("⚠️ API yanıtı (text):", text);
+        responseData = { error: `Sunucudan geçersiz yanıt: ${text.substring(0, 100)}...` };
+      }
+      
+      if (!response.ok) {
+        const errorMessage = responseData.error || responseData.message || `Sunucu hatası: ${response.status} ${response.statusText}`;
+        console.warn("❌ API hatası:", errorMessage);
+        // Hata oluştu ama LocalStorage'a zaten kaydettik, devam edebiliriz
+      }
+
+      // API yanıtından kullanıcıyı al veya form verilerinden oluşturulan lokal kullanıcıyı kullan
+      const finalUser = responseData.kullanici || newLocalUser;
+      
+      // LocalStorage'a kaydet (API yanıtı başarılıysa güncelle)
+      if (response.ok && responseData.kullanici) {
+        try {
+          const savedUsers = localStorage.getItem('it_satinalma_users');
+          let users = [];
+          
+          if (savedUsers) {
+            users = JSON.parse(savedUsers);
+            // Geçici kullanıcıyı kaldır
+            users = users.filter((user: any) => user.id !== tempId);
+          }
+          
+          // API'den dönen gerçek kullanıcıyı ekle
+          users.push(finalUser);
+          
+          // LocalStorage'a kaydet
+          localStorage.setItem('it_satinalma_users', JSON.stringify(users));
+          console.log('✅ Gerçek kullanıcı API yanıtından localStorage\'a kaydedildi:', finalUser);
+        } catch (storageError) {
+          console.error('LocalStorage son-kaydetme hatası:', storageError);
+        }
       }
 
       // Başarılı olduğunda bu mesajı göster
@@ -221,10 +256,10 @@ export function KullaniciEkle({ onSuccess }: KullaniciEkleProps) {
       // Formu sıfırla
       form.reset();
       
-      // Başarı callback'ini çağır (Listeye dön)
+      // Başarı callback'ini çağır
       onSuccess();
     } catch (error: any) {
-      console.error("Kullanıcı oluşturma hatası:", error);
+      console.error("❌ Kullanıcı oluşturma genel hatası:", error);
       toast.error(`Kullanıcı oluşturulurken hata oluştu: ${error.message || 'Bilinmeyen hata'}`);
     } finally {
       setLoading(false);

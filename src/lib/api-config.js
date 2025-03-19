@@ -144,27 +144,52 @@ export function toggleMockApi(enable) {
 
 // API isteği yapmak için yardımcı fonksiyon
 export async function fetchWithoutCache(url, options = {}) {
+  // ZORUNLU: Her istek için useMockApi=false ayarla, dev modunu kesinlikle devre dışı bırak
+  if (typeof window !== 'undefined' && window.localStorage) {
+    window.localStorage.setItem('useMockApi', 'false');
+  }
+
   // Varsayılan önbellekleme önleyici başlıkları ekle
   const headers = {
     ...options.headers,
     'Cache-Control': 'no-cache, no-store, must-revalidate',
     'Pragma': 'no-cache',
-    'Expires': '0'
+    'Expires': '0',
+    'X-Force-No-Mock': 'true', // Özel başlık: mock veri kullanımını engelle
+    'X-Request-Time': Date.now().toString() // Her istekte benzersiz değer
   };
   
   // Yeni URL nesnesi oluştur ve önbellek parametresi ekle
   const urlObj = new URL(url, window.location.origin);
+  
+  // Önbellek atlama parametreleri
   urlObj.searchParams.append('_nocache', Date.now().toString());
+  urlObj.searchParams.append('_force', 'true');
   
   // Güncellenmiş seçenekler
   const updatedOptions = {
     ...options,
     headers,
-    cache: 'no-store'
+    cache: 'no-store',
+    next: { revalidate: 0 }
   };
   
-  // Fetch isteği yap
-  return fetch(urlObj.toString(), updatedOptions);
+  console.log(`📤 API İsteği (no-cache): ${urlObj.toString()}`);
+  
+  // İstek ve yanıt işleme sürelerini kaydet
+  const startTime = Date.now();
+  
+  try {
+    // Fetch isteği yap
+    const response = await fetch(urlObj.toString(), updatedOptions);
+    const endTime = Date.now();
+    console.log(`📥 API Yanıtı: ${response.status} ${response.statusText} (${endTime - startTime}ms)`);
+    
+    return response;
+  } catch (error) {
+    console.error(`🚨 API Hatası: ${error.message}`);
+    throw error;
+  }
 }
 
 export default apiConfig;

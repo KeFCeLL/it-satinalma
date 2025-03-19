@@ -79,8 +79,38 @@ const mockKullanicilar = [
   }
 ];
 
-// Geliştirme modu kontrolü
-const IS_DEV_MODE = process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEV_API === 'true' || process.env.DB_BYPASS === 'true';
+// !!! KRİTİK ÇÖZÜM !!! Global IS_DEV_MODE değişkeni veya kendi false değerimizi kullan
+// UYARI: Bu değişken asla true olmamalı, aşağıdaki tüm kod bunun false olduğu varsayılarak yazılmıştır
+const IS_DEV_MODE = global.IS_DEV_MODE !== undefined ? global.IS_DEV_MODE : false;
+
+// Log fonksiyonları ekleyelim
+function logInfo(message, data = null) {
+  const logMsg = `🔵 [API/Kullanicilar/ID] ${message}`;
+  if (data) {
+    console.log(logMsg, data);
+  } else {
+    console.log(logMsg);
+  }
+}
+
+function logError(message, error = null) {
+  const logMsg = `🔴 [API/Kullanicilar/ID] ${message}`;
+  if (error) {
+    console.error(logMsg, error);
+  } else {
+    console.error(logMsg);
+  }
+}
+
+// Ortam değişkenlerini logla
+logInfo('Kullanıcı Detay API yükleniyor (Global değişken kullanılıyor)', {
+  NODE_ENV: process.env.NODE_ENV,
+  NEXT_PUBLIC_DEV_API: process.env.NEXT_PUBLIC_DEV_API,
+  DB_BYPASS: process.env.DB_BYPASS,
+  globalIsDev: global.IS_DEV_MODE,
+  localIsDev: IS_DEV_MODE,
+  message: "IS_DEV_MODE değişkeni KAPALI olarak ayarlandı"
+});
 
 // GET - Tek bir kullanıcıyı getir
 async function getKullaniciHandler(request, { params }) {
@@ -88,48 +118,51 @@ async function getKullaniciHandler(request, { params }) {
     const { id } = params;
     
     // Geliştirme modu ise mock veri dön
-    if (IS_DEV_MODE) {
-      console.log('🔧 Geliştirme modu: Mock kullanıcı verisi döndürülüyor, ID:', id);
+    // DEVRE DIŞI - Global değişken her zaman false
+    // if (IS_DEV_MODE) {
+    //   console.log('🔧 Geliştirme modu: Mock kullanıcı verisi döndürülüyor, ID:', id);
       
-      // Mock kullanıcıyı bul
-      const kullanici = mockKullanicilar.find(user => user.id === id);
+    //   // Mock kullanıcıyı bul
+    //   const kullanici = mockKullanicilar.find(user => user.id === id);
       
-      // Kullanıcı bulunamadıysa
-      if (!kullanici) {
-        // ID test-admin-id ise özel bir kullanıcı döndür (oturum açma için)
-        if (id === 'test-admin-id') {
-          const adminUser = {
-            id: "test-admin-id",
-            email: "test@example.com",
-            ad: "Test",
-            soyad: "Admin",
-            rol: "ADMIN",
-            departmanId: "mock-dep-1",
-            departman: {
-              id: "mock-dep-1",
-              ad: "IT Departmanı"
-            },
-            createdAt: new Date(),
-            updatedAt: new Date()
-          };
-          
-          return NextResponse.json({
-            success: true,
-            user: adminUser
-          });
-        }
-        
-        return NextResponse.json(
-          { success: false, message: 'Kullanıcı bulunamadı' },
-          { status: 404 }
-        );
-      }
-      
-      return NextResponse.json({
-        success: true,
-        user: kullanici
-      });
-    }
+    //   // Kullanıcı bulunamadıysa
+    //   if (!kullanici) {
+    //     // ID test-admin-id ise özel bir kullanıcı döndür (oturum açma için)
+    //     if (id === 'test-admin-id') {
+    //       const adminUser = {
+    //         id: "test-admin-id",
+    //         email: "test@example.com",
+    //         ad: "Test",
+    //         soyad: "Admin",
+    //         rol: "ADMIN",
+    //         departmanId: "mock-dep-1",
+    //         departman: {
+    //           id: "mock-dep-1",
+    //           ad: "IT Departmanı"
+    //         },
+    //         createdAt: new Date(),
+    //         updatedAt: new Date()
+    //       };
+    //       
+    //       return NextResponse.json({
+    //         success: true,
+    //         user: adminUser
+    //       });
+    //     }
+    //     
+    //     return NextResponse.json(
+    //       { success: false, message: 'Kullanıcı bulunamadı' },
+    //       { status: 404 }
+    //     );
+    //   }
+    //   
+    //   return NextResponse.json({
+    //     success: true,
+    //     user: kullanici
+    //   });
+    // }
+    
+    logInfo('Kullanıcı getirme isteği - ID:', id);
     
     try {
       // Kullanıcıyı bul
@@ -195,38 +228,39 @@ async function getKullaniciHandler(request, { params }) {
       });
     }
   } catch (error) {
-    console.error('Kullanıcı getirme hatası:', error);
+    logError('Kullanıcı getirme hatası:', error);
     
     // Hata durumunda geliştirme modunda mock yanıt döndür
-    if (IS_DEV_MODE) {
-      console.log('🔧 Hata alındı, geliştirme modu: Mock kullanıcı verisi döndürülüyor');
-      
-      // ID test-admin-id ise özel bir kullanıcı döndür (oturum açma için)
-      if (params?.id === 'test-admin-id') {
-        return NextResponse.json({
-          success: true,
-          user: {
-            id: "test-admin-id",
-            email: "test@example.com",
-            ad: "Test",
-            soyad: "Admin",
-            rol: "ADMIN",
-            departmanId: "mock-dep-1",
-            departman: {
-              id: "mock-dep-1",
-              ad: "IT Departmanı"
-            },
-            createdAt: new Date(),
-            updatedAt: new Date()
-          }
-        });
-      }
-      
-      return NextResponse.json({
-        success: true,
-        user: mockKullanicilar[0]
-      });
-    }
+    // DEVRE DIŞI - Global değişken her zaman false
+    // if (IS_DEV_MODE) {
+    //   console.log('🔧 Hata alındı, geliştirme modu: Mock kullanıcı verisi döndürülüyor');
+    //   
+    //   // ID test-admin-id ise özel bir kullanıcı döndür (oturum açma için)
+    //   if (params?.id === 'test-admin-id') {
+    //     return NextResponse.json({
+    //       success: true,
+    //       user: {
+    //         id: "test-admin-id",
+    //         email: "test@example.com",
+    //         ad: "Test",
+    //         soyad: "Admin",
+    //         rol: "ADMIN",
+    //         departmanId: "mock-dep-1",
+    //         departman: {
+    //           id: "mock-dep-1",
+    //           ad: "IT Departmanı"
+    //         },
+    //         createdAt: new Date(),
+    //         updatedAt: new Date()
+    //       }
+    //     });
+    //   }
+    //   
+    //   return NextResponse.json({
+    //     success: true,
+    //     user: mockKullanicilar[0]
+    //   });
+    // }
     
     return NextResponse.json(
       { success: false, message: 'Kullanıcı getirilirken bir hata oluştu', error: error.message },

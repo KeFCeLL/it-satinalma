@@ -21,19 +21,20 @@ function logError(message, error = null) {
   }
 }
 
-// Geliştirme modu kontrolü
-// const IS_DEV_MODE = process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEV_API === 'true' || process.env.DB_BYPASS === 'true';
+// !!! KRİTİK ÇÖZÜM !!! Mock veri davranışını tamamen devre dışı bırakıyoruz
+// UYARI: Bu değeri asla değiştirmeyin, veritabanı zorunlu olarak kullanılacak şekilde ayarlandı
+const IS_DEV_MODE = false;
 
-// !!! GEÇİCİ ÇÖZÜM !!! - Geliştirme modunu zorla kapatıyoruz
-const IS_DEV_MODE = false; 
+// Global değişken olarak tanımla ki diğer modüller de kullanabilsin
+global.IS_DEV_MODE = IS_DEV_MODE;
 
 // Ortam değişkenlerini logla
-logInfo('Middleware yükleniyor', {
+logInfo('Middleware yükleniyor (GLOBAL DEĞİŞKEN SÜRÜMÜ)', {
   NODE_ENV: process.env.NODE_ENV,
-  NEXT_PUBLIC_DEV_API: process.env.NEXT_PUBLIC_DEV_API,
+  NEXT_PUBLIC_DEV_API: process.env.NEXT_PUBLIC_DEV_API, 
   DB_BYPASS: process.env.DB_BYPASS,
   IS_DEV_MODE,
-  message: "Geliştirme modu zorla kapatıldı - Geçici çözüm"
+  message: "Global IS_DEV_MODE değişkeni oluşturuldu ve KAPALI olarak ayarlandı"
 });
 
 export function withAuth(handler) {
