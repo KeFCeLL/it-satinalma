@@ -69,13 +69,17 @@ export default function UrunlerPage() {
       const data = await response.json();
       
       if (data.success) {
-        setUrunler(data.urunler);
-        setToplamUrunSayisi(data.toplamUrunSayisi);
+        setUrunler(data.urunler || []); // Eğer urunler undefined ise boş dizi kullan
+        setToplamUrunSayisi(data.toplamUrunSayisi || 0); // Eğer toplamUrunSayisi undefined ise 0 kullan
       } else {
+        setUrunler([]); // Hata durumunda boş dizi
+        setToplamUrunSayisi(0); // Hata durumunda 0
         toast.error('Ürünler yüklenirken bir hata oluştu');
       }
     } catch (error) {
       console.error('Ürünler getirilirken hata:', error);
+      setUrunler([]); // Hata durumunda boş dizi
+      setToplamUrunSayisi(0); // Hata durumunda 0
       toast.error('Ürünler yüklenirken bir hata oluştu');
     } finally {
       setYukleniyor(false);
@@ -208,6 +212,10 @@ export default function UrunlerPage() {
           <div className="flex justify-center items-center h-64">
             <Loader2 className="h-8 w-8 animate-spin" />
           </div>
+        ) : urunler.length === 0 ? (
+          <div className="flex justify-center items-center h-64 text-gray-500">
+            Henüz ürün bulunmuyor
+          </div>
         ) : (
           <>
             <Table>
@@ -237,25 +245,27 @@ export default function UrunlerPage() {
             </Table>
 
             {/* Sayfalama */}
-            <div className="flex justify-center items-center space-x-2 mt-4">
-              <Button
-                variant="outline"
-                onClick={() => setSayfa(s => Math.max(1, s - 1))}
-                disabled={sayfa === 1}
-              >
-                Önceki
-              </Button>
-              <span className="text-sm">
-                Sayfa {sayfa} / {toplamSayfa}
-              </span>
-              <Button
-                variant="outline"
-                onClick={() => setSayfa(s => Math.min(toplamSayfa, s + 1))}
-                disabled={sayfa === toplamSayfa}
-              >
-                Sonraki
-              </Button>
-            </div>
+            {toplamUrunSayisi > 0 && (
+              <div className="flex justify-center items-center space-x-2 mt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => setSayfa(s => Math.max(1, s - 1))}
+                  disabled={sayfa === 1}
+                >
+                  Önceki
+                </Button>
+                <span className="text-sm">
+                  Sayfa {sayfa} / {toplamSayfa}
+                </span>
+                <Button
+                  variant="outline"
+                  onClick={() => setSayfa(s => Math.min(toplamSayfa, s + 1))}
+                  disabled={sayfa === toplamSayfa}
+                >
+                  Sonraki
+                </Button>
+              </div>
+            )}
           </>
         )}
       </div>
