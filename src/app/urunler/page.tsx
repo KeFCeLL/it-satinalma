@@ -4,6 +4,23 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Loader2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
+// Kullanıcı tipi tanımı
+interface Kullanici {
+  id: string;
+  ad: string;
+  soyad: string;
+  email: string;
+  departmanId: string;
+  rol: string;
+  durum: string;
+  createdAt: Date;
+  updatedAt: Date;
+  departman?: {
+    id: string;
+    ad: string;
+  };
+}
+
 // Kategori silme modalı için yeni bileşen
 function KategoriSilmeModal({ 
   isOpen, 
@@ -68,78 +85,91 @@ function KategoriSilmeModal({
   );
 }
 
-// Kategori silme fonksiyonunu güncelle
-const handleKategoriSil = async (kategori: string) => {
-  try {
-    // Önce kategorideki ürün sayısını kontrol et
-    const response = await fetch(`/api/urunler/kategoriler?kategori=${encodeURIComponent(kategori)}`);
-    const data = await response.json();
+// Ana sayfa bileşeni
+export default function UrunlerPage() {
+  // State'leri ekle
+  const [kategoriSilmeModalOpen, setKategoriSilmeModalOpen] = useState(false);
+  const [silinecekKategori, setSilinecekKategori] = useState<string | null>(null);
+  const [silinecekKategoriUrunSayisi, setSilinecekKategoriUrunSayisi] = useState(0);
 
-    if (!response.ok) {
-      if (data.message?.includes('ürün bulunuyor')) {
-        // Kategoride ürün varsa modalı göster
-        setSilinecekKategori(kategori);
-        setSilinecekKategoriUrunSayisi(parseInt(data.message.match(/\d+/)[0]));
-        setKategoriSilmeModalOpen(true);
-        return;
+  // Kategori silme fonksiyonunu güncelle
+  const handleKategoriSil = async (kategori: string) => {
+    try {
+      // Önce kategorideki ürün sayısını kontrol et
+      const response = await fetch(`/api/urunler/kategoriler?kategori=${encodeURIComponent(kategori)}`);
+      const data = await response.json();
+
+      if (!response.ok) {
+        if (data.message?.includes('ürün bulunuyor')) {
+          // Kategoride ürün varsa modalı göster
+          setSilinecekKategori(kategori);
+          setSilinecekKategoriUrunSayisi(parseInt(data.message.match(/\d+/)[0]));
+          setKategoriSilmeModalOpen(true);
+          return;
+        }
+        throw new Error(data.message || 'Kategori silinirken bir hata oluştu');
       }
-      throw new Error(data.message || 'Kategori silinirken bir hata oluştu');
+
+      // Kategoride ürün yoksa direkt sil
+      await fetch(`/api/urunler/kategoriler?kategori=${encodeURIComponent(kategori)}`, {
+        method: 'DELETE',
+      });
+
+      // Kategorileri yenile
+      fetchKategoriler();
+      toast.success('Kategori başarıyla silindi');
+    } catch (error) {
+      console.error('Kategori silinirken hata:', error);
+      toast.error(error instanceof Error ? error.message : 'Kategori silinirken bir hata oluştu');
     }
+  };
 
-    // Kategoride ürün yoksa direkt sil
-    await fetch(`/api/urunler/kategoriler?kategori=${encodeURIComponent(kategori)}`, {
-      method: 'DELETE',
-    });
+  // Kategorileri getir
+  const fetchKategoriler = async () => {
+    try {
+      const response = await fetch('/api/urunler/kategoriler');
+      const data = await response.json();
+      if (data.success) {
+        // Kategorileri state'e kaydet
+      }
+    } catch (error) {
+      console.error('Kategoriler getirilirken hata:', error);
+    }
+  };
 
-    // Kategorileri yenile
-    fetchKategoriler();
-    toast.success('Kategori başarıyla silindi');
-  } catch (error) {
-    console.error('Kategori silinirken hata:', error);
-    toast.error(error instanceof Error ? error.message : 'Kategori silinirken bir hata oluştu');
-  }
-};
-
-// State'leri ekle
-const [kategoriSilmeModalOpen, setKategoriSilmeModalOpen] = useState(false);
-const [silinecekKategori, setSilinecekKategori] = useState<string | null>(null);
-const [silinecekKategoriUrunSayisi, setSilinecekKategoriUrunSayisi] = useState(0);
-
-// ... existing code ...
-
-// Modal'ı ekle
-return (
-  <div>
-    {/* ... existing code ... */}
-    
-    <KategoriSilmeModal
-      isOpen={kategoriSilmeModalOpen}
-      onClose={() => {
-        setKategoriSilmeModalOpen(false);
-        setSilinecekKategori(null);
-        setSilinecekKategoriUrunSayisi(0);
-      }}
-      kategori={silinecekKategori || ''}
-      urunSayisi={silinecekKategoriUrunSayisi}
-      onConfirm={async () => {
-        if (!silinecekKategori) return;
-        
-        // Önce ürünleri sil
-        await fetch(`/api/urunler/kategoriler/${encodeURIComponent(silinecekKategori)}/urunler`, {
-          method: 'DELETE',
-        });
-        
-        // Sonra kategoriyi sil
-        await fetch(`/api/urunler/kategoriler?kategori=${encodeURIComponent(silinecekKategori)}`, {
-          method: 'DELETE',
-        });
-        
-        // Kategorileri yenile
-        fetchKategoriler();
-        toast.success('Kategori ve içindeki ürünler başarıyla silindi');
-      }}
-    />
-    
-    {/* ... existing code ... */}
-  </div>
-); 
+  return (
+    <div>
+      {/* Sayfa içeriği */}
+      
+      <KategoriSilmeModal
+        isOpen={kategoriSilmeModalOpen}
+        onClose={() => {
+          setKategoriSilmeModalOpen(false);
+          setSilinecekKategori(null);
+          setSilinecekKategoriUrunSayisi(0);
+        }}
+        kategori={silinecekKategori || ''}
+        urunSayisi={silinecekKategoriUrunSayisi}
+        onConfirm={async () => {
+          if (!silinecekKategori) return;
+          
+          // Önce ürünleri sil
+          await fetch(`/api/urunler/kategoriler/${encodeURIComponent(silinecekKategori)}/urunler`, {
+            method: 'DELETE',
+          });
+          
+          // Sonra kategoriyi sil
+          await fetch(`/api/urunler/kategoriler?kategori=${encodeURIComponent(silinecekKategori)}`, {
+            method: 'DELETE',
+          });
+          
+          // Kategorileri yenile
+          fetchKategoriler();
+          toast.success('Kategori ve içindeki ürünler başarıyla silindi');
+        }}
+      />
+      
+      {/* Diğer bileşenler */}
+    </div>
+  );
+} 
