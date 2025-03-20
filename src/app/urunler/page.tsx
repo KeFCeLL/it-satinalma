@@ -189,7 +189,7 @@ export default function UrunlerPage() {
     try {
       setYukleniyor(true);
       setHata(null);
-      console.log('Ürünler getiriliyor...');
+      console.log('Ürünler getiriliyor... Sayfa:', sayfa, 'Sayfa başına:', sayfaBasinaUrun);
       
       const response = await fetch(`/api/urunler?sayfa=${sayfa}&sayfaBasi=${sayfaBasinaUrun}`);
       
@@ -222,14 +222,33 @@ export default function UrunlerPage() {
         return;
       }
 
-      // Ürünler dizisi kontrolü - hem success hem de urunler özelliklerini kontrol et
-      const urunlerVerisi = Array.isArray(data.urunler) 
-        ? data.urunler 
-        : (Array.isArray(data.data) ? data.data : []);
+      // Yeni API yanıt formatına uyum sağla
+      const urunlerVerisi = data.data || data.urunler || [];
+      const toplamUrun = data.meta?.toplam || data.toplamUrunSayisi || urunlerVerisi.length || 0;
+      const mevcutSayfa = data.meta?.sayfa || data.sayfa || sayfa;
+      const sayfaBasi = data.meta?.sayfaBasi || data.sayfaBasina || sayfaBasinaUrun;
 
-      console.log('İşlenen ürünler:', urunlerVerisi);
+      console.log('İşlenen ürünler:', urunlerVerisi.length);
+      console.log('Toplam ürün sayısı:', toplamUrun);
+      
+      // Boş Array.isArray kontrolü
+      if (!Array.isArray(urunlerVerisi)) {
+        console.warn('API yanıtında dizi bekleniyor ancak bulunamadı');
+        setUrunler([]);
+        setToplamUrunSayisi(0);
+        return;
+      }
+
       setUrunler(urunlerVerisi);
-      setToplamUrunSayisi(data.toplamUrunSayisi || urunlerVerisi.length || 0);
+      setToplamUrunSayisi(toplamUrun);
+
+      // Sayfa değişikliklerini güncelle (API'nin döndürdüğü gerçek sayfa ve sayfa başına değerler ile)
+      if (mevcutSayfa !== sayfa) {
+        setSayfa(mevcutSayfa);
+      }
+      if (sayfaBasi !== sayfaBasinaUrun) {
+        setSayfaBasinaUrun(sayfaBasi);
+      }
 
     } catch (error) {
       console.error('Ürünler getirilirken hata:', error);
@@ -298,14 +317,39 @@ export default function UrunlerPage() {
 
   // Sayfa yüklendiğinde verileri getir
   useEffect(() => {
-    fetchUrunler();
-    fetchKategoriler();
+    try {
+      // Sayfa yüklenirken varsayılan değerleri güvenli bir şekilde ayarla
+      setSayfa(1);
+      setSayfaBasinaUrun(10);
+      // İlk veri yüklemesi
+      fetchUrunler();
+      fetchKategoriler();
+    } catch (error) {
+      console.error("Sayfa başlatma hatası:", error);
+      setHata("Sayfa başlatılırken bir hata oluştu. Lütfen sayfayı yenileyin.");
+    }
   }, []);
 
   // Sayfa veya sayfa başına ürün sayısı değiştiğinde ürünleri getir
   useEffect(() => {
-    if (sayfa > 0) {
+    try {
+      // Sayfa numarası ve sayfa başına öğe sayısının güvenli olduğundan emin ol
+      const gecerliSayfa = sayfa > 0 ? sayfa : 1;
+      const gecerliSayfaBasinaUrun = sayfaBasinaUrun > 0 ? sayfaBasinaUrun : 10;
+      
+      // Sayfa değerleri değiştiyse verileri yenile
+      if (gecerliSayfa !== sayfa) {
+        setSayfa(gecerliSayfa);
+      }
+      if (gecerliSayfaBasinaUrun !== sayfaBasinaUrun) {
+        setSayfaBasinaUrun(gecerliSayfaBasinaUrun);
+      }
+      
+      // Değerler güvenliyse verileri getir
       fetchUrunler();
+    } catch (error) {
+      console.error("Sayfalama hatası:", error);
+      setHata("Sayfalama işlemi sırasında bir hata oluştu. Lütfen sayfayı yenileyin.");
     }
   }, [sayfa, sayfaBasinaUrun]);
 

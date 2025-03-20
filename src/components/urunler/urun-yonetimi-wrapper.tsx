@@ -102,7 +102,19 @@ export function UrunYonetimiWrapper() {
   
   // Filtre değiştiğinde ürünleri filtrele
   useEffect(() => {
-    filterProducts();
+    try {
+      if (!Array.isArray(urunler)) {
+        console.warn("Filtreleme için geçerli ürünler dizisi bulunamadı");
+        setFiltrelenmisUrunler([]);
+        return;
+      }
+      
+      filterProducts();
+    } catch (error) {
+      console.error("Filtreleme hatası:", error);
+      // Hata durumunda orijinal listeyi göster
+      setFiltrelenmisUrunler(Array.isArray(urunler) ? urunler : []);
+    }
   }, [urunler, searchQuery, selectedCategory]);
   
   // Ürünleri getir
@@ -111,17 +123,33 @@ export function UrunYonetimiWrapper() {
     setError(null);
     
     try {
+      console.log("Ürünler yükleniyor...");
+      
       const response = await getProducts({
         sayfa: 1,
         sayfaBasi: 100
       });
       
-      setUrunler(response.data);
-      setFiltrelenmisUrunler(response.data);
+      if (!response || !response.data) {
+        console.warn("API yanıtı boş veya veri içermiyor:", response);
+        setUrunler([]);
+        toast.error("Ürünler yüklenemedi");
+        return;
+      }
+      
+      const verifiedData = Array.isArray(response.data) ? response.data : [];
+      console.log("Ürünler yüklendi, toplam:", verifiedData.length);
+      
+      setUrunler(verifiedData);
+      setFiltrelenmisUrunler(verifiedData);
     } catch (err) {
       console.error("Ürünler yüklenirken hata oluştu:", err);
       setError("Ürünler yüklenirken bir hata oluştu. Lütfen daha sonra tekrar deneyin.");
       toast.error("Ürünler yüklenemedi");
+      
+      // Hata durumunda boş dizi ile devam et
+      setUrunler([]);
+      setFiltrelenmisUrunler([]);
     } finally {
       setIsLoading(false);
     }
@@ -135,16 +163,18 @@ export function UrunYonetimiWrapper() {
       const response = await getProductCategories();
       console.log("API yanıtı:", response);
       
-      if (response && response.kategoriler) {
-        console.log("Yüklenen kategoriler:", response.kategoriler);
-        setKategoriler(response.kategoriler);
-      } else {
-        // API'den dönüş var ama kategoriler yoksa
-        console.error("API yanıtında kategoriler bulunamadı:", response);
-        // Manuel kategoriler ekleyin (geçici çözüm)
+      // Kategori yanıtını doğrula
+      const kategorilerListesi = Array.isArray(response.kategoriler) ? response.kategoriler : [];
+      
+      if (kategorilerListesi.length === 0) {
+        console.warn("API yanıtında kategoriler bulunamadı veya boş:", response);
+        // Varsayılan kategoriler (client tarafında)
         const varsayilanKategoriler = ["Donanım", "Yazılım", "Mobilya", "Kırtasiye", "Diğer"];
         setKategoriler(varsayilanKategoriler);
         toast.warning("Varsayılan kategoriler yüklendi");
+      } else {
+        console.log("Yüklenen kategoriler:", kategorilerListesi);
+        setKategoriler(kategorilerListesi);
       }
     } catch (err) {
       console.error("Kategoriler yüklenirken hata oluştu:", err);
@@ -249,19 +279,25 @@ export function UrunYonetimiWrapper() {
   
   // Ürünleri filtrele
   const filterProducts = () => {
+    if (!Array.isArray(urunler)) {
+      console.warn("Filtreleme için geçerli ürünler dizisi bulunamadı");
+      setFiltrelenmisUrunler([]);
+      return;
+    }
+    
     let filtered = [...urunler];
     
     // Arama filtresi
     if (searchQuery) {
       filtered = filtered.filter(urun => 
-        urun.ad.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (urun.aciklama && urun.aciklama.toLowerCase().includes(searchQuery.toLowerCase()))
+        (urun?.ad || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        ((urun?.aciklama || "").toLowerCase().includes(searchQuery.toLowerCase()))
       );
     }
     
     // Kategori filtresi
     if (selectedCategory && selectedCategory !== "all") {
-      filtered = filtered.filter(urun => urun.kategori === selectedCategory);
+      filtered = filtered.filter(urun => urun?.kategori === selectedCategory);
     }
     
     setFiltrelenmisUrunler(filtered);
