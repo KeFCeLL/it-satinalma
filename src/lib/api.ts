@@ -12,6 +12,10 @@ type ApiMode = 'normal' | 'mock';
 function getCurrentApiMode(): ApiMode {
   // Server-side rendering sırasında
   if (typeof window === 'undefined') {
+    // Vercel production'da her zaman normal mod kullan
+    if (process.env.VERCEL_ENV === 'production') {
+      return 'normal';
+    }
     return 'mock'; // Vercel build ve SSR sırasında mock mod kullan
   }
   
@@ -20,7 +24,7 @@ function getCurrentApiMode(): ApiMode {
     // Öncelik sırası:
     // 1. localStorage
     // 2. çevre değişkenleri
-    // 3. Varsayılan: mock
+    // 3. Varsayılan: normal (production'da)
     
     // localStorage kontrolü
     const storedMode = window.localStorage.getItem('useMockApi');
@@ -29,12 +33,13 @@ function getCurrentApiMode(): ApiMode {
     
     // Çevre değişkeni kontrolü
     if (process.env.NEXT_PUBLIC_USE_MOCK_API === 'false') return 'normal';
+    if (process.env.NEXT_PUBLIC_USE_MOCK_API === 'true') return 'mock';
     
-    // Varsayılan olarak mock kullan
-    return 'mock';
+    // Varsayılan olarak normal kullan çünkü production'da gerçek API'ye erişim gerekir
+    return 'normal';
   } catch (e) {
     console.error('API modu belirleme hatası:', e);
-    return 'mock'; // Hata durumunda güvenli mod
+    return 'normal'; // Hata durumunda güvenli mod
   }
 }
 
@@ -173,7 +178,13 @@ export async function handleApiResponse<T>(response: Response): Promise<T> {
     // Boş yanıt kontrolü
     if (!responseText || responseText.trim() === '') {
       console.error("API boş yanıt döndürdü:", response.status, response.statusText);
-      throw new Error(`Sunucu boş yanıt döndürdü. Durum: ${response.status} ${response.statusText}`);
+      
+      // Boş yanıt durumunda varsayılan bir yanıt oluştur
+      return {
+        success: false,
+        message: `Sunucu boş yanıt döndürdü. Durum: ${response.status} ${response.statusText}`,
+        data: []
+      } as unknown as T;
     }
     
     try {
@@ -184,7 +195,13 @@ export async function handleApiResponse<T>(response: Response): Promise<T> {
         // API hata mesajını kullan veya varsayılan mesaj döndür
         const error = data.message || "Bir şeyler yanlış gitti";
         console.error("API hata yanıtı:", error, data);
-        throw new Error(error);
+        
+        // Hata durumunda bile veri dönmesini sağla (crash'i engelle)
+        return {
+          success: false,
+          message: error,
+          data: []
+        } as unknown as T;
       }
       
       return data as T;
@@ -192,18 +209,24 @@ export async function handleApiResponse<T>(response: Response): Promise<T> {
       // JSON ayrıştırma hatası
       console.error("Ham API yanıtı ayrıştırılamadı:", responseText);
       console.error("JSON ayrıştırma hatası:", jsonError);
-      throw new Error(`API yanıtı geçerli JSON formatında değil: ${(jsonError as Error).message}`);
+      
+      // JSON hatası durumunda da varsayılan bir yanıt oluştur
+      return {
+        success: false,
+        message: `API yanıtı geçerli JSON formatında değil: ${(jsonError as Error).message}`,
+        data: []
+      } as unknown as T;
     }
   } catch (error) {
     // Text alınırken veya JSON ayrıştırılırken hata oluştu
-    if (error instanceof Error) {
-      console.error("Ham API yanıtı:", JSON.stringify(responseText));
-      throw error;
-    }
+    console.error("Ham API yanıtı işlenirken hata:", error);
     
-    // Bilinmeyen hata durumu
-    console.error("Beklenmeyen API yanıt hatası:", error);
-    throw new Error("API yanıtı işlenirken beklenmeyen bir hata oluştu");
+    // Hata durumunda da veri dönmesini sağla (crash'i engelle)
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "API yanıtı işlenirken beklenmeyen bir hata oluştu",
+      data: []
+    } as unknown as T;
   }
 }
 
