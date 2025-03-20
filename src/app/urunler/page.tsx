@@ -171,6 +171,18 @@ export default function UrunlerPage() {
   const [sayfaBasinaUrun, setSayfaBasinaUrun] = useState(10);
   const [yukleniyor, setYukleniyor] = useState(true);
   const [hata, setHata] = useState<string | null>(null);
+  const [kategoriler, setKategoriler] = useState<string[]>([]);
+  const [kategoriYukleniyor, setKategoriYukleniyor] = useState(false);
+  const [kategoriHata, setKategoriHata] = useState<string | null>(null);
+  const [kategoriSilmeModal, setKategoriSilmeModal] = useState<{
+    isOpen: boolean;
+    kategori: string | null;
+    urunSayisi: number;
+  }>({
+    isOpen: false,
+    kategori: null,
+    urunSayisi: 0,
+  });
 
   // Ürünleri getir
   const fetchUrunler = async () => {
@@ -180,34 +192,114 @@ export default function UrunlerPage() {
       console.log('Ürünler getiriliyor...');
       
       const response = await fetch(`/api/urunler?sayfa=${sayfa}&sayfaBasi=${sayfaBasinaUrun}`);
+      
+      // Eğer başarısız olursa, hatayı yakala ama sayfayı çökertme
       if (!response.ok) {
-        throw new Error('Ürünler yüklenirken bir hata oluştu');
+        console.warn(`API yanıtı başarısız: ${response.status} ${response.statusText}`);
+        setHata(`Ürünler yüklenirken bir hata oluştu (${response.status})`);
+        setUrunler([]);
+        setToplamUrunSayisi(0);
+        return;
       }
 
-      const data = await response.json();
-      console.log('Ürünler yanıtı:', data);
-
-      if (!data || !data.success || !Array.isArray(data.urunler)) {
-        throw new Error('Geçersiz API yanıtı');
+      let data;
+      try {
+        data = await response.json();
+        console.log('Ürünler yanıtı:', data);
+      } catch (jsonError) {
+        console.error('JSON çözümleme hatası:', jsonError);
+        setHata('API yanıtı beklenmeyen formatta');
+        setUrunler([]);
+        setToplamUrunSayisi(0);
+        return;
       }
 
-      setUrunler(data.urunler);
-      setToplamUrunSayisi(data.toplamUrunSayisi || 0);
+      // Yanıt yapısını daha ayrıntılı kontrol et
+      if (!data) {
+        console.warn('API yanıtı boş');
+        setUrunler([]);
+        setToplamUrunSayisi(0);
+        return;
+      }
+
+      // Ürünler dizisi kontrolü - hem success hem de urunler özelliklerini kontrol et
+      const urunlerVerisi = Array.isArray(data.urunler) 
+        ? data.urunler 
+        : (Array.isArray(data.data) ? data.data : []);
+
+      console.log('İşlenen ürünler:', urunlerVerisi);
+      setUrunler(urunlerVerisi);
+      setToplamUrunSayisi(data.toplamUrunSayisi || urunlerVerisi.length || 0);
 
     } catch (error) {
       console.error('Ürünler getirilirken hata:', error);
       setHata(error instanceof Error ? error.message : 'Ürünler yüklenirken bir hata oluştu');
       setUrunler([]);
       setToplamUrunSayisi(0);
-      toast.error('Ürünler yüklenirken bir hata oluştu');
     } finally {
       setYukleniyor(false);
+    }
+  };
+
+  // Kategorileri getir
+  const fetchKategoriler = async () => {
+    try {
+      setKategoriYukleniyor(true);
+      setKategoriHata(null);
+      
+      const response = await fetch('/api/urunler/kategoriler');
+      
+      // Eğer başarısız olursa, hatayı yakala ama sayfayı çökertme
+      if (!response.ok) {
+        console.warn(`Kategoriler API yanıtı başarısız: ${response.status} ${response.statusText}`);
+        setKategoriHata(`Kategoriler yüklenirken bir hata oluştu (${response.status})`);
+        setKategoriler([]);
+        return;
+      }
+
+      let data;
+      try {
+        data = await response.json();
+        console.log('Kategoriler yanıtı:', data);
+      } catch (jsonError) {
+        console.error('Kategoriler JSON çözümleme hatası:', jsonError);
+        setKategoriHata('Kategoriler API yanıtı beklenmeyen formatta');
+        setKategoriler([]);
+        return;
+      }
+      
+      // Veri yapısını kontrol et ve güvenli bir şekilde kategorileri ayarla
+      let kategorilerListesi: string[] = [];
+      
+      if (data && data.success && Array.isArray(data.data)) {
+        kategorilerListesi = data.data;
+      } else if (data && Array.isArray(data.data)) {
+        kategorilerListesi = data.data;
+      } else if (data && Array.isArray(data.kategoriler)) {
+        kategorilerListesi = data.kategoriler;
+      } else if (Array.isArray(data)) {
+        kategorilerListesi = data;
+      } else {
+        console.warn('Kategoriler API beklenmeyen format döndürdü', data);
+        kategorilerListesi = [];
+      }
+      
+      console.log('İşlenen kategoriler:', kategorilerListesi);
+      setKategoriler(kategorilerListesi);
+      
+    } catch (error) {
+      console.error('Kategoriler getirilirken hata:', error);
+      setKategoriHata(error instanceof Error ? error.message : 'Kategoriler yüklenirken bir hata oluştu');
+      setKategoriler([]);
+    } finally {
+      setKategoriYukleniyor(false);
     }
   };
 
   // Sayfa yüklendiğinde verileri getir
   useEffect(() => {
     fetchUrunler();
+    fetchKategoriler();
   }, []);
 
   // Sayfa veya sayfa başına ürün sayısı değiştiğinde ürünleri getir
@@ -223,100 +315,102 @@ export default function UrunlerPage() {
   // Render
   return (
     <div className="container mx-auto py-10">
-      <div className="space-y-4">
-        <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold">Ürün Yönetimi</h1>
-          <div className="flex items-center space-x-2">
-            <span className="text-sm text-gray-500">Sayfa başına:</span>
-            <Select
-              value={sayfaBasinaUrun.toString()}
-              onValueChange={(value) => {
-                setSayfaBasinaUrun(Number(value));
-                setSayfa(1);
-              }}
-            >
-              <SelectTrigger className="w-[100px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="10">10</SelectItem>
-                <SelectItem value="20">20</SelectItem>
-                <SelectItem value="30">30</SelectItem>
-                <SelectItem value="50">50</SelectItem>
-                <SelectItem value="100">100</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        {yukleniyor ? (
-          <div className="flex justify-center items-center h-64">
-            <Loader2 className="h-8 w-8 animate-spin" />
-          </div>
-        ) : hata ? (
-          <div className="flex justify-center items-center h-64 text-red-500">
-            {hata}
-          </div>
-        ) : !Array.isArray(urunler) || urunler.length === 0 ? (
-          <div className="flex justify-center items-center h-64 text-gray-500">
-            Henüz ürün bulunmuyor
-          </div>
-        ) : (
-          <>
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Ürün Adı</TableHead>
-                    <TableHead>Birim Fiyat</TableHead>
-                    <TableHead>Birim</TableHead>
-                    <TableHead>Açıklama</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {urunler.map((urun) => (
-                    <TableRow key={urun?.id || 'unknown'}>
-                      <TableCell>{urun?.ad || '-'}</TableCell>
-                      <TableCell>
-                        {urun?.birimFiyat
-                          ? new Intl.NumberFormat('tr-TR', {
-                              style: 'currency',
-                              currency: 'TRY',
-                            }).format(urun.birimFiyat)
-                          : '-'}
-                      </TableCell>
-                      <TableCell>{urun?.birim || '-'}</TableCell>
-                      <TableCell>{urun?.aciklama || '-'}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+      <ErrorBoundary>
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h1 className="text-2xl font-bold">Ürün Yönetimi</h1>
+            <div className="flex items-center space-x-2">
+              <span className="text-sm text-gray-500">Sayfa başına:</span>
+              <Select
+                value={sayfaBasinaUrun.toString()}
+                onValueChange={(value) => {
+                  setSayfaBasinaUrun(Number(value));
+                  setSayfa(1);
+                }}
+              >
+                <SelectTrigger className="w-[100px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="20">20</SelectItem>
+                  <SelectItem value="30">30</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
+          </div>
 
-            {toplamUrunSayisi > 0 && (
-              <div className="flex justify-center items-center space-x-2 mt-4">
-                <Button
-                  variant="outline"
-                  onClick={() => setSayfa((s) => Math.max(1, s - 1))}
-                  disabled={sayfa === 1}
-                >
-                  Önceki
-                </Button>
-                <span className="text-sm">
-                  Sayfa {sayfa} / {toplamSayfa}
-                </span>
-                <Button
-                  variant="outline"
-                  onClick={() => setSayfa((s) => Math.min(toplamSayfa, s + 1))}
-                  disabled={sayfa === toplamSayfa}
-                >
-                  Sonraki
-                </Button>
+          {yukleniyor ? (
+            <div className="flex justify-center items-center h-64">
+              <Loader2 className="h-8 w-8 animate-spin" />
+            </div>
+          ) : hata ? (
+            <div className="flex justify-center items-center h-64 text-red-500">
+              {hata}
+            </div>
+          ) : !Array.isArray(urunler) || urunler.length === 0 ? (
+            <div className="flex justify-center items-center h-64 text-gray-500">
+              Henüz ürün bulunmuyor
+            </div>
+          ) : (
+            <>
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Ürün Adı</TableHead>
+                      <TableHead>Birim Fiyat</TableHead>
+                      <TableHead>Birim</TableHead>
+                      <TableHead>Açıklama</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(Array.isArray(urunler) ? urunler : []).map((urun) => (
+                      <TableRow key={urun?.id || 'unknown'}>
+                        <TableCell>{urun?.ad || '-'}</TableCell>
+                        <TableCell>
+                          {urun?.birimFiyat
+                            ? new Intl.NumberFormat('tr-TR', {
+                                style: 'currency',
+                                currency: 'TRY',
+                              }).format(urun.birimFiyat)
+                            : '-'}
+                        </TableCell>
+                        <TableCell>{urun?.birim || '-'}</TableCell>
+                        <TableCell>{urun?.aciklama || '-'}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
-            )}
-          </>
-        )}
-      </div>
+
+              {toplamUrunSayisi > 0 && (
+                <div className="flex justify-center items-center space-x-2 mt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => setSayfa((s) => Math.max(1, s - 1))}
+                    disabled={sayfa === 1}
+                  >
+                    Önceki
+                  </Button>
+                  <span className="text-sm">
+                    Sayfa {sayfa} / {toplamSayfa}
+                  </span>
+                  <Button
+                    variant="outline"
+                    onClick={() => setSayfa((s) => Math.min(toplamSayfa, s + 1))}
+                    disabled={sayfa === toplamSayfa}
+                  >
+                    Sonraki
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </ErrorBoundary>
     </div>
   );
 } 
