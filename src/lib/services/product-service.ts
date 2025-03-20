@@ -150,12 +150,29 @@ export async function getProduct(id: string): Promise<{ urun: Product }> {
 }
 
 // Yeni ürün oluştur (sadece admin, IT_ADMIN ve SATINALMA_ADMIN için)
-export async function createProduct(data: ProductCreateInput): Promise<{ urun: Product }> {
-  const response = await fetchWithAuth('/api/urunler', {
-    method: 'POST',
-    body: JSON.stringify(data),
-  });
-  return handleApiResponse(response);
+export async function createProduct(product: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>) {
+  try {
+    console.log('Ürün ekleme isteği:', product);
+    
+    const response = await fetchWithAuth('/api/urunler', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(product),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      console.error('API Hata Yanıtı:', response.status, errorData);
+      throw new Error(`Ürün eklenemedi (${response.status}): ${errorData?.message || response.statusText}`);
+    }
+    
+    return handleApiResponse<{ success: boolean; message: string; data: Product }>(response);
+  } catch (error) {
+    console.error('Ürün eklenirken hata:', error);
+    throw error; // Hatayı yukarı ilet
+  }
 }
 
 // Ürün güncelle (sadece admin, IT_ADMIN ve SATINALMA_ADMIN için)

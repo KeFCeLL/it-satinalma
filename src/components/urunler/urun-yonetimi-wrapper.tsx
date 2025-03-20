@@ -395,6 +395,9 @@ export function UrunYonetimiWrapper() {
         return;
       }
       
+      // Yükleme durumunu göster
+      setIsLoading(true);
+      
       // API'ye gönderilecek veri
       const apiData = {
         ad: formData.ad.trim(),
@@ -405,18 +408,26 @@ export function UrunYonetimiWrapper() {
       };
       
       // Konsola gönderilecek verileri yazdır
-      console.log("Gönderilecek veriler:", apiData);
+      console.log("Ürün ekleme: Gönderilecek veriler", apiData);
       
       try {
+        // Ürün ekleme isteği
         const result = await createProduct(apiData);
+        console.log("Ürün ekleme başarılı, yanıt:", result);
         
+        // Başarı mesajı göster
         toast.success("Ürün başarıyla eklendi");
+        
+        // Form dialogunu kapat
         setIsAddDialogOpen(false);
         
-        // Ürün listesini güncelle
-        fetchProducts();
+        // Ürün listesini yenile (gecikme ile - veritabanının güncellenmesini beklemek için)
+        setTimeout(() => {
+          console.log("Ürün listesi yenileniyor...");
+          fetchProducts();
+        }, 500);
       } catch (apiError) {
-        console.error("API hatası:", apiError);
+        console.error("Ürün ekleme API hatası:", apiError);
         
         if (apiError instanceof Error) {
           toast.error(`Ürün eklenemedi: ${apiError.message}`);
@@ -425,7 +436,7 @@ export function UrunYonetimiWrapper() {
         }
       }
     } catch (err) {
-      console.error("Ürün eklenirken hata oluştu:", err);
+      console.error("Ürün ekleme işlemi hatası:", err);
       
       // Hata mesajını daha anlaşılır şekilde göster
       if (err instanceof Error) {
@@ -433,6 +444,9 @@ export function UrunYonetimiWrapper() {
       } else {
         toast.error("Ürün eklenemedi: Bilinmeyen bir hata oluştu");
       }
+    } finally {
+      // İşlem tamamlandığında yükleme durumunu sıfırla
+      setIsLoading(false);
     }
   };
   
