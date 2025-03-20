@@ -32,70 +32,101 @@ export async function getProducts(params?: PaginationParams & {
   kategori?: string;
   arama?: string;
 }): Promise<PaginatedResponse<Product>> {
-  try {
-    const url = addQueryParams('/api/urunler', params || {});
-    const response = await fetchWithAuth(url);
-    
-    const data = await handleApiResponse<any>(response);
-    
-    // Güvenli bir API yanıtı hazırla
-    return {
-      data: Array.isArray(data.urunler) ? data.urunler : 
-            Array.isArray(data.data) ? data.data : [],
-      meta: {
-        toplam: data.toplamUrunSayisi || data.meta?.toplam || 0,
-        sayfaBasi: data.sayfaBasina || data.meta?.sayfaBasi || 10,
-        mevcutSayfa: data.sayfa || data.meta?.mevcutSayfa || 1,
-        sonSayfa: data.sonSayfa || data.meta?.sonSayfa || 1
-      }
-    };
-  } catch (error) {
-    console.error("Ürünler getirilirken hata:", error);
-    // Hata durumunda bile uygulamanın çalışmaya devam etmesi için boş veri döndür
-    return { 
-      data: [], 
-      meta: { toplam: 0, sayfaBasi: 10, mevcutSayfa: 1, sonSayfa: 1 } 
-    };
-  }
+  const url = addQueryParams('/api/urunler', params || {});
+  const response = await fetchWithAuth(url);
+  return handleApiResponse(response);
 }
 
 // Ürün kategorilerini getir
 export async function getProductCategories(): Promise<{ kategoriler: string[] }> {
-  try {
-    const response = await fetchWithAuth('/api/urunler/kategoriler');
-    const data = await handleApiResponse<any>(response);
-    
-    // Farklı API yanıt formatlarını destekle
-    let kategoriler: string[] = [];
-    
-    if (Array.isArray(data)) {
-      kategoriler = data;
-    } else if (data && Array.isArray(data.data)) {
-      kategoriler = data.data;
-    } else if (data && Array.isArray(data.kategoriler)) {
-      kategoriler = data.kategoriler;
-    }
-    
-    return { kategoriler };
-  } catch (error) {
-    console.error("Kategoriler getirilirken hata:", error);
-    // Hata durumunda boş dizi döndür
-    return { kategoriler: [] };
-  }
+  const response = await fetchWithAuth('/api/urunler/kategoriler');
+  const data = await handleApiResponse<{ data: string[] }>(response);
+  return { kategoriler: data.data || [] };
 }
 
 // Yeni kategori ekle
 export async function addProductCategory(kategori: string): Promise<{ success: boolean; message: string; kategoriler: string[] }> {
-  const response = await fetchWithAuth('/api/urunler/kategoriler', {
-    method: 'POST',
-    body: JSON.stringify({ kategori }),
-  });
-  const data = await handleApiResponse<{ success: boolean; message: string; data: string[] }>(response);
-  return { 
-    success: data.success, 
-    message: data.message, 
-    kategoriler: data.data || [] 
-  };
+  try {
+    console.log(`Kategori ekleme isteği yapılıyor: ${kategori}`);
+    
+    // Önce normal POST isteğini deneyelim
+    try {
+      const response = await fetchWithAuth('/api/urunler/kategoriler', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ kategori }),
+      });
+      
+      console.log(`Kategori ekleme yanıtı (HTTP status): ${response.status}`);
+      
+      // 405 Method Not Allowed hatası durumunda alternatif yönteme geç
+      if (response.status === 405) {
+        throw new Error('405 Method Not Allowed');
+      }
+      
+      const data = await handleApiResponse<any>(response);
+      
+      // Yanıt yapısını kontrol et
+      let kategoriler: string[] = [];
+      if (Array.isArray(data.data)) {
+        kategoriler = data.data;
+      } else if (data && Array.isArray(data.kategoriler)) {
+        kategoriler = data.kategoriler;
+      } else if (Array.isArray(data)) {
+        kategoriler = data;
+      }
+      
+      return { 
+        success: data.success || false, 
+        message: data.message || 'Kategori işlemi tamamlandı', 
+        kategoriler: kategoriler 
+      };
+    } catch (error) {
+      // POST isteği başarısız oldu, alternatif yöntemi dene
+      console.log('POST isteği başarısız oldu, alternatif yöntemi deniyorum...');
+      
+      // Alternatif GET endpoint'ini kullan
+      const alternativeResponse = await fetchWithAuth(
+        `/api/urunler/kategoriler/add?name=${encodeURIComponent(kategori)}`,
+        { method: 'GET' }
+      );
+      
+      console.log(`Alternatif istek yanıtı (HTTP status): ${alternativeResponse.status}`);
+      
+      if (!alternativeResponse.ok) {
+        throw new Error(`Alternatif istek başarısız: ${alternativeResponse.status}`);
+      }
+      
+      const altData = await handleApiResponse<any>(alternativeResponse);
+      
+      // Yanıt yapısını kontrol et
+      let kategoriler: string[] = [];
+      if (Array.isArray(altData.data)) {
+        kategoriler = altData.data;
+      } else if (altData && Array.isArray(altData.kategoriler)) {
+        kategoriler = altData.kategoriler;
+      } else if (Array.isArray(altData)) {
+        kategoriler = altData;
+      }
+      
+      return { 
+        success: altData.success || false, 
+        message: (altData.message || 'Kategori başarıyla eklendi') + ' (alternatif yöntem)', 
+        kategoriler: kategoriler 
+      };
+    }
+  } catch (error) {
+    console.error("Kategori eklenirken hata:", error);
+    return {
+      success: false,
+      message: error instanceof Error 
+        ? error.message 
+        : 'Kategori eklenirken bir hata oluştu. Lütfen daha sonra tekrar deneyin.',
+      kategoriler: []
+    };
+  }
 }
 
 // Kategori sil

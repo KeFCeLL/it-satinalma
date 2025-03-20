@@ -173,7 +173,14 @@ export function UrunYonetimiWrapper() {
       
       if (result.success) {
         toast.success(result.message || "Kategori başarıyla eklendi");
-        setKategoriler(result.kategoriler);
+        
+        // API'den dönen kategorileri kullan, yoksa verileri yeniden çek
+        if (Array.isArray(result.kategoriler) && result.kategoriler.length > 0) {
+          setKategoriler(result.kategoriler);
+        } else {
+          await fetchCategories(); // Kategorileri yeniden yükle
+        }
+        
         setIsAddCategoryDialogOpen(false);
         setNewCategoryName("");
       } else {
@@ -208,7 +215,19 @@ export function UrunYonetimiWrapper() {
       
       if (result.success) {
         toast.success(result.message || "Kategori başarıyla silindi");
-        setKategoriler(result.kategoriler);
+        
+        // API'den dönen kategorileri kullan, yoksa verileri yeniden çek
+        if (Array.isArray(result.kategoriler) && result.kategoriler.length > 0) {
+          setKategoriler(result.kategoriler);
+        } else {
+          await fetchCategories(); // Kategorileri yeniden yükle
+        }
+        
+        // Kategori filtresini temizle
+        if (selectedCategory === categoryToDelete) {
+          setSelectedCategory("all");
+        }
+        
         setIsDeleteCategoryDialogOpen(false);
         setCategoryToDelete("");
       } else {
