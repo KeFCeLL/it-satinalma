@@ -165,18 +165,12 @@ function KategoriSilmeModal({
 // Ana sayfa bileşeni
 export default function UrunlerPage() {
   // State'leri ekle
-  const [kategoriler, setKategoriler] = useState<string[]>([]);
   const [urunler, setUrunler] = useState<Urun[]>([]);
   const [toplamUrunSayisi, setToplamUrunSayisi] = useState(0);
   const [sayfa, setSayfa] = useState(1);
   const [sayfaBasinaUrun, setSayfaBasinaUrun] = useState(10);
   const [yukleniyor, setYukleniyor] = useState(true);
   const [hata, setHata] = useState<string | null>(null);
-  const [kategoriSilmeModal, setKategoriSilmeModal] = useState({
-    isOpen: false,
-    kategori: null as string | null,
-    urunSayisi: 0,
-  });
 
   // Ürünleri getir
   const fetchUrunler = async () => {
@@ -211,41 +205,9 @@ export default function UrunlerPage() {
     }
   };
 
-  // Kategorileri getir
-  const fetchKategoriler = async () => {
-    try {
-      console.log('Kategoriler getiriliyor...');
-      const response = await fetch('/api/urunler/kategoriler');
-      
-      if (!response.ok) {
-        throw new Error('Kategoriler yüklenirken bir hata oluştu');
-      }
-
-      const data = await response.json();
-      console.log('Kategoriler yanıtı:', data);
-      
-      if (!data || !Array.isArray(data.kategoriler)) {
-        throw new Error('Geçersiz API yanıtı');
-      }
-
-      setKategoriler(data.kategoriler);
-    } catch (error) {
-      console.error('Kategoriler getirilirken hata:', error);
-      setKategoriler([]);
-      toast.error('Kategoriler yüklenirken bir hata oluştu');
-    }
-  };
-
   // Sayfa yüklendiğinde verileri getir
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        await Promise.all([fetchUrunler(), fetchKategoriler()]);
-      } catch (error) {
-        console.error('Veriler yüklenirken hata:', error);
-      }
-    };
-    loadData();
+    fetchUrunler();
   }, []);
 
   // Sayfa veya sayfa başına ürün sayısı değiştiğinde ürünleri getir
@@ -254,70 +216,6 @@ export default function UrunlerPage() {
       fetchUrunler();
     }
   }, [sayfa, sayfaBasinaUrun]);
-
-  // Kategori silme işlemi
-  const handleDeleteKategori = async (kategori: string) => {
-    try {
-      const response = await fetch(`/api/urunler/kategoriler?kategori=${encodeURIComponent(kategori)}`);
-      const data = await response.json();
-
-      if (!response.ok) {
-        if (data.message?.includes('ürün bulunuyor')) {
-          const urunSayisi = parseInt(data.message.match(/\d+/)?.[0] || '0');
-          setKategoriSilmeModal({
-            isOpen: true,
-            kategori,
-            urunSayisi,
-          });
-          return;
-        }
-        throw new Error(data.message || 'Kategori silinirken bir hata oluştu');
-      }
-
-      await fetch(`/api/urunler/kategoriler?kategori=${encodeURIComponent(kategori)}`, {
-        method: 'DELETE',
-      });
-
-      fetchKategoriler();
-      toast.success('Kategori başarıyla silindi');
-    } catch (error) {
-      console.error('Kategori silinirken hata:', error);
-      toast.error(error instanceof Error ? error.message : 'Kategori silinirken bir hata oluştu');
-    }
-  };
-
-  // Ürünleri taşıma işlemi
-  const handleKategoriTasima = async (hedefKategori: string) => {
-    if (!kategoriSilmeModal.kategori) return;
-
-    try {
-      const response = await fetch(
-        `/api/urunler/kategoriler/${encodeURIComponent(kategoriSilmeModal.kategori)}/urunler`,
-        {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            yeniKategori: hedefKategori,
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Ürünler taşınırken bir hata oluştu');
-      }
-
-      fetchKategoriler();
-      toast.success('Ürünler başarıyla taşındı');
-    } catch (error) {
-      console.error('Ürünler taşınırken hata:', error);
-      toast.error(error instanceof Error ? error.message : 'Ürünler taşınırken bir hata oluştu');
-      throw error;
-    }
-  };
 
   // Toplam sayfa sayısını hesapla
   const toplamSayfa = Math.max(1, Math.ceil(toplamUrunSayisi / sayfaBasinaUrun));
@@ -370,7 +268,6 @@ export default function UrunlerPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Ürün Adı</TableHead>
-                    <TableHead>Kategori</TableHead>
                     <TableHead>Birim Fiyat</TableHead>
                     <TableHead>Birim</TableHead>
                     <TableHead>Açıklama</TableHead>
@@ -380,7 +277,6 @@ export default function UrunlerPage() {
                   {urunler.map((urun) => (
                     <TableRow key={urun?.id || 'unknown'}>
                       <TableCell>{urun?.ad || '-'}</TableCell>
-                      <TableCell>{urun?.kategori || '-'}</TableCell>
                       <TableCell>
                         {urun?.birimFiyat
                           ? new Intl.NumberFormat('tr-TR', {
@@ -421,15 +317,6 @@ export default function UrunlerPage() {
           </>
         )}
       </div>
-
-      <KategoriSilmeModal
-        isOpen={kategoriSilmeModal.isOpen}
-        onClose={() => setKategoriSilmeModal({ isOpen: false, kategori: null, urunSayisi: 0 })}
-        kategori={kategoriSilmeModal.kategori}
-        urunSayisi={kategoriSilmeModal.urunSayisi}
-        kategoriler={kategoriler}
-        onTasima={handleKategoriTasima}
-      />
     </div>
   );
 } 
