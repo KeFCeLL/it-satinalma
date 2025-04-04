@@ -25,33 +25,42 @@ export async function POST(request) {
       );
     }
 
-    // Basitleştirilmiş login - veritabanı sorgusu yapmadan token oluştur
-    console.log("Basitleştirilmiş login kullanılıyor");
-    
-    // Test kullanıcısı bilgileri - gerçek ortamda kullanmayın
-    const testUser = {
-      id: "test-admin-id",
-      email: email,
-      ad: "Admin",
-      soyad: "Kullanıcı",
-      rol: "ADMIN",
-      departmanId: "test-departman-id",
-      departman: {
-        id: "test-departman-id",
-        ad: "Yönetim"
+    // Kullanıcıyı veritabanında ara
+    const user = await prisma.kullanici.findUnique({
+      where: { email },
+      include: {
+        departman: true
       }
-    };
-    
+    });
+
+    if (!user) {
+      console.log("Kullanıcı bulunamadı:", email);
+      return NextResponse.json(
+        { error: "Geçersiz email veya şifre" },
+        { status: 401 }
+      );
+    }
+
+    // Şifreyi kontrol et
+    const isValidPassword = await bcrypt.compare(password, user.sifre);
+    if (!isValidPassword) {
+      console.log("Geçersiz şifre");
+      return NextResponse.json(
+        { error: "Geçersiz email veya şifre" },
+        { status: 401 }
+      );
+    }
+
     // Token oluştur (1 saat geçerli)
     const token = jwt.sign(
       {
-        id: testUser.id,
-        email: testUser.email,
-        ad: testUser.ad,
-        soyad: testUser.soyad,
-        rol: testUser.rol,
-        departmanId: testUser.departmanId,
-        departman: testUser.departman
+        id: user.id,
+        email: user.email,
+        ad: user.ad,
+        soyad: user.soyad,
+        rol: user.rol,
+        departmanId: user.departmanId,
+        departman: user.departman
       },
       process.env.JWT_SECRET,
       { expiresIn: "1h" }
@@ -59,7 +68,7 @@ export async function POST(request) {
 
     // Refresh token oluştur (7 gün geçerli)
     const refreshToken = jwt.sign(
-      { id: testUser.id },
+      { id: user.id },
       process.env.REFRESH_TOKEN_SECRET || process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
@@ -85,17 +94,17 @@ export async function POST(request) {
     });
 
     // Başarılı yanıt
-    console.log("Test kullanıcısı için giriş başarılı:", email);
+    console.log("Kullanıcı için giriş başarılı:", email);
     return NextResponse.json({
       success: true,
       user: {
-        id: testUser.id,
-        email: testUser.email,
-        ad: testUser.ad,
-        soyad: testUser.soyad,
-        rol: testUser.rol,
-        departmanId: testUser.departmanId,
-        departman: testUser.departman
+        id: user.id,
+        email: user.email,
+        ad: user.ad,
+        soyad: user.soyad,
+        rol: user.rol,
+        departmanId: user.departmanId,
+        departman: user.departman
       }
     });
   } catch (error) {

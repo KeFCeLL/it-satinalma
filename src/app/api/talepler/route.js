@@ -222,7 +222,8 @@ async function createTalepHandler(request) {
       gerekce, // Bu alan kullanılabilir ama veritabanına kaydedilmeyecek
       departmanId, 
       oncelik, 
-      tahminiTutar, 
+      tahminiTutar,
+      tahminiTeslimTarihi,
       urunTalepler 
     } = requestData;
     
@@ -230,11 +231,39 @@ async function createTalepHandler(request) {
     const { id: kullaniciId, rol, departmanId: kullaniciDepartmanId } = request.user;
     console.log("İstek yapan kullanıcı ID:", kullaniciId, "Rol:", rol);
 
-    // Zorunlu alanları kontrol et
-    if (!baslik || !aciklama || !departmanId || !oncelik || !urunTalepler || urunTalepler.length === 0) {
-      console.log("Eksik alanlar:", { baslik, aciklama, departmanId, oncelik, urunTalepler });
+    // Kullanıcının var olup olmadığını kontrol et
+    const kullanici = await prisma.kullanici.findUnique({
+      where: { id: kullaniciId },
+    });
+
+    if (!kullanici) {
+      console.log("Kullanıcı bulunamadı:", kullaniciId);
       return NextResponse.json(
-        { success: false, message: 'Tüm zorunlu alanlar doldurulmalıdır' },
+        { success: false, message: 'Geçersiz kullanıcı' },
+        { status: 400 }
+      );
+    }
+
+    // Zorunlu alanları kontrol et
+    if (!baslik || !aciklama || !departmanId || !oncelik || !urunTalepler || urunTalepler.length === 0 || !tahminiTeslimTarihi) {
+      console.log("Eksik alanlar:", { baslik, aciklama, departmanId, oncelik, urunTalepler, tahminiTeslimTarihi });
+      return NextResponse.json(
+        { success: false, message: 'Tüm zorunlu alanlar doldurulmalıdır. Tahmini teslim tarihi seçilmelidir.' },
+        { status: 400 }
+      );
+    }
+
+    // Tarih formatını kontrol et ve dönüştür
+    let parsedDate;
+    try {
+      parsedDate = new Date(tahminiTeslimTarihi);
+      if (isNaN(parsedDate.getTime())) {
+        throw new Error('Geçersiz tarih formatı');
+      }
+    } catch (error) {
+      console.error('Tarih dönüşüm hatası:', error);
+      return NextResponse.json(
+        { success: false, message: 'Geçersiz tarih formatı' },
         { status: 400 }
       );
     }
@@ -333,6 +362,7 @@ async function createTalepHandler(request) {
         talepEdenId: kullaniciId,
         durum: talepDurum,
         oncelik,
+        tahminiTeslimTarihi: parsedDate,
         createdAt: new Date(),
         urunTalepler: {
           create: urunTalepler.map(urunTalep => ({
@@ -424,8 +454,21 @@ async function createTalepHandler(request) {
     }, { status: 201 });
   } catch (error) {
     console.error('Talep oluşturma hatası:', error);
+    console.error('Hata detayları:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
     return NextResponse.json(
-      { success: false, message: 'Sunucu hatası', error: error.message },
+      { 
+        success: false, 
+        message: error.message || 'Sunucu hatası',
+        error: process.env.NODE_ENV === 'development' ? {
+          message: error.message,
+          name: error.name,
+          stack: error.stack
+        } : undefined
+      },
       { status: 500 }
     );
   } finally {

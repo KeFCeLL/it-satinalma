@@ -1,0 +1,10 @@
+218df2c - Ürün ekleme işlemi düzeltildi ve listeye otomatik yansıma eklendi
+2322052 - Kategori API'sinde hata yönetimi ve güvenlik iyileştirmeleri yapıldı
+90f3274 - API yanıt formatı standardize edildi ve sayfalama sorunu giderildi
+4256ca9 - Kategori ekleme ve silme işlemleri için Vercel uyumluluğu sağlandı
+62e59dc - Next.js yapılandırması düzeltildi ve CSS optimizasyonu için critters eklendi
+d6b2dbe - API yanıt işleme ve Next.js yapılandırması üretim ortamı için iyileştirildi
+fa124a4 - Urunler sayfasındaki hata yönetimi güçlendirildi ve API yanıt kontrolü iyileştirildi
+14fabf8 - Paket bağımlılıkları güncellendi
+e858988 - Kategori sütunu ve işlemleri kaldırıldı
+abc61f8 - Saat bileşeni eklendi ve dashboard sayfasında kullanıldı

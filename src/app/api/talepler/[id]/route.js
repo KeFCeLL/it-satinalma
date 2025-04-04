@@ -1,120 +1,113 @@
 import prisma from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { withAuth, withRole } from '../../middleware';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 
 // Tek talep getir
 async function getTalepHandler(request, { params }) {
   try {
-    const id = params.id;
-
-    if (!id) {
-      return NextResponse.json(
-        { success: false, message: 'Talep ID gereklidir' },
-        { status: 400 }
-      );
-    }
+    const { id } = params;
 
     const talep = await prisma.talep.findUnique({
       where: { id },
       include: {
-        departman: true,
+        departman: {
+          select: {
+            ad: true,
+          },
+        },
         talepEden: {
           select: {
-            id: true,
             ad: true,
             soyad: true,
             email: true,
-            departman: true,
           },
         },
         urunTalepler: {
           include: {
-            urun: true,
+            urun: {
+              select: {
+                id: true,
+                ad: true,
+                birimFiyat: true,
+              },
+            },
           },
         },
         onaylar: {
           include: {
             onaylayan: {
               select: {
-                id: true,
                 ad: true,
                 soyad: true,
                 email: true,
-                rol: true,
               },
             },
           },
           orderBy: {
-            id: 'asc',
-          },
-        },
-        notlar: {
-          orderBy: {
-            createdAt: 'desc',
+            adim: 'asc',
           },
         },
       },
     });
 
     if (!talep) {
-      return NextResponse.json(
-        { success: false, message: 'Talep bulunamadı' },
-        { status: 404 }
-      );
+      return NextResponse.json({ success: false, message: 'Talep bulunamadı' }, { status: 404 });
     }
 
-    // Kullanıcı yetki kontrolü
-    const { rol, id: kullaniciId, departmanId: kullaniciDepartmanId } = request.user;
+    // Check if user has permission to view this request
+    const { role, id: kullaniciId, departmanId: kullaniciDepartmanId } = request.user;
 
     // Normal kullanıcılar sadece kendi taleplerini görebilir
-    if (rol === 'KULLANICI' && talep.talepEdenId !== kullaniciId) {
+    if (role === 'KULLANICI' && talep.talepEdenId !== kullaniciId) {
       return NextResponse.json(
-        { success: false, message: 'Bu talebi görüntüleme yetkiniz bulunmuyor' },
+        { success: false, message: 'Bu talebi görüntüleme yetkiniz yok' },
         { status: 403 }
       );
     }
 
     // Departman yöneticileri sadece kendi departmanlarının taleplerini görebilir
-    if (rol === 'DEPARTMAN_YONETICISI' && talep.departmanId !== kullaniciDepartmanId) {
+    if (role === 'DEPARTMAN_YONETICISI' && talep.departmanId !== kullaniciDepartmanId) {
       return NextResponse.json(
-        { success: false, message: 'Bu talebi görüntüleme yetkiniz bulunmuyor' },
+        { success: false, message: 'Bu talebi görüntüleme yetkiniz yok' },
         { status: 403 }
       );
     }
 
     // IT yöneticisi kontrol
-    if (rol === 'IT_ADMIN') {
+    if (role === 'IT_ADMIN') {
       // Kendi departmanının talebi değilse ve IT onayı aşamasında değilse
       const itOnayAdimi = talep.onaylar.find(adim => adim.adim === 'IT_DEPARTMANI');
       if (talep.departmanId !== kullaniciDepartmanId && 
           (!itOnayAdimi || itOnayAdimi.durum === 'BEKLEMIYOR')) {
         return NextResponse.json(
-          { success: false, message: 'Bu talebi görüntüleme yetkiniz bulunmuyor' },
+          { success: false, message: 'Bu talebi görüntüleme yetkiniz yok' },
           { status: 403 }
         );
       }
     }
 
     // Finans yöneticisi kontrol
-    if (rol === 'FINANS_ADMIN') {
+    if (role === 'FINANS_ADMIN') {
       // Kendi departmanının talebi değilse ve Finans onayı aşamasında değilse
       const finansOnayAdimi = talep.onaylar.find(adim => adim.adim === 'FINANS_DEPARTMANI');
       if (talep.departmanId !== kullaniciDepartmanId && 
           (!finansOnayAdimi || finansOnayAdimi.durum === 'BEKLEMIYOR')) {
         return NextResponse.json(
-          { success: false, message: 'Bu talebi görüntüleme yetkiniz bulunmuyor' },
+          { success: false, message: 'Bu talebi görüntüleme yetkiniz yok' },
           { status: 403 }
         );
       }
     }
 
     // Satınalma yöneticisi kontrol
-    if (rol === 'SATINALMA_ADMIN') {
+    if (role === 'SATINALMA_ADMIN') {
       // Kendi departmanının talebi değilse ve satınalma aşamasında değilse
       if (talep.departmanId !== kullaniciDepartmanId && 
           !['ONAYLANDI', 'SATINALMA_SURECINDE', 'TAMAMLANDI'].includes(talep.durum)) {
         return NextResponse.json(
-          { success: false, message: 'Bu talebi görüntüleme yetkiniz bulunmuyor' },
+          { success: false, message: 'Bu talebi görüntüleme yetkiniz yok' },
           { status: 403 }
         );
       }
@@ -130,8 +123,6 @@ async function getTalepHandler(request, { params }) {
       { success: false, message: 'Sunucu hatası', error: error.message },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 }
 

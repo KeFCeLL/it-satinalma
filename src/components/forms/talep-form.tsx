@@ -47,6 +47,10 @@ const formSchema = z.object({
   }),
   tahminiTeslimTarihi: z.date({
     required_error: "Tahmini teslim tarihi seçmelisiniz.",
+  }).min(new Date(), {
+    message: "Tahmini teslim tarihi geçmiş bir tarih olamaz.",
+  }).max(new Date(new Date().setMonth(new Date().getMonth() + 6)), {
+    message: "Tahmini teslim tarihi en fazla 6 ay sonrası olabilir.",
   }),
   oncelikDurumu: z.enum(["DUSUK", "ORTA", "YUKSEK"], {
     required_error: "Öncelik durumunu seçmelisiniz.",
@@ -142,7 +146,11 @@ export function TalepForm() {
         birimFiyat: selectedProduct.birimFiyat,
       });
     } else {
-      form.setValue("urun", undefined);
+      form.setValue("urun", {
+        id: "",
+        ad: "",
+        birimFiyat: 0
+      });
     }
   }, [selectedProduct, form]);
 
@@ -154,144 +162,80 @@ export function TalepForm() {
     try {
       setLoading(true);
       
-      // Ürün seçilmediğini kontrol et
-      if (!values.urun || !values.urun.id) {
-        toast.error("Lütfen bir ürün seçin.");
-        setLoading(false);
-        return;
-      }
-
-      // Departman seçimini kontrol et
-      if (!values.departmanId) {
-        toast.error("Lütfen bir departman seçin.");
-        setLoading(false);
-        return;
-      }
-      
-      // Departman ID'sinin format kontrolü
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      if (!uuidRegex.test(values.departmanId)) {
-        console.error("Geçersiz departman ID formatı:", values.departmanId);
-        toast.error("Geçersiz departman formatı. Lütfen geçerli bir departman seçin.");
-        setLoading(false);
-        return;
-      }
-      
-      console.log("Departman ID kontrolü geçildi:", values.departmanId);
-      
       // Form değerlerini API formatına dönüştür
       const talepData = {
         baslik: values.baslik,
         aciklama: values.aciklama,
-        gerekce: values.aciklama, // Açıklama alanını gerekçe olarak da kullanıyoruz
+        gerekce: values.aciklama,
         departmanId: values.departmanId,
-        oncelik: values.oncelikDurumu, // Form'da oncelikDurumu, API'de oncelik
-        tahminiTutar: values.urun ? values.urun.birimFiyat * values.miktar : 0,
-        urunTalepler: [
+        oncelik: values.oncelikDurumu,
+        tahminiTeslimTarihi: values.tahminiTeslimTarihi ? new Date(values.tahminiTeslimTarihi).toISOString() : null,
+        tahminiTutar: values.urun?.birimFiyat ? values.urun.birimFiyat * values.miktar : 0,
+        urunTalepler: values.urun ? [
           {
             urunId: values.urun.id,
             miktar: values.miktar || 1,
             tutar: values.urun.birimFiyat * (values.miktar || 1)
           }
-        ]
+        ] : []
       };
       
       console.log("Talep oluşturuluyor:", talepData);
       
-      // Talebi oluştur - API doğrudan çağrılıyor (request-service yerine)
-      let responseData: any;
-      try {
-        console.log("API isteği gönderiliyor:", {
-          url: '/api/talepler',
-          method: 'POST',
-          body: talepData
-        });
-        
-        const response = await fetch('/api/talepler', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(talepData),
-          credentials: 'include', // Cookie'leri dahil et
-        });
-        
-        if (!response) {
-          throw new Error("API yanıtı alınamadı");
+      // Talebi oluştur
+      const response = await fetch('/api/talepler', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(talepData),
+        credentials: 'include', // Cookie'leri gönder
+      });
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        console.error('API yanıtı:', responseData);
+        if (response.status === 401) {
+          toast.error("Oturumunuz sonlanmış. Lütfen tekrar giriş yapın.");
+          router.push('/giris');
+          return;
         }
-        
-        console.log("API yanıtı alındı:", {
-          status: response.status,
-          statusText: response.statusText,
-          ok: response.ok
-        });
-        
-        responseData = await response.json();
-        console.log("API yanıt içeriği:", responseData);
-        
-        if (!response.ok) {
-          // Hata mesajını daha anlaşılır şekilde işle
-          let errorMessage = 'Talep oluştururken bir hata oluştu';
-          
-          if (responseData.message) {
-            errorMessage = responseData.message;
-            
-            // Departman hatası için özel durumu ele al
-            if (responseData.message === 'Geçersiz departman') {
-              errorMessage = `Departman bulunamadı (ID: ${values.departmanId}). Lütfen geçerli bir departman seçin.`;
-              console.error("Veritabanında bulunamayan departman ID'si:", values.departmanId);
-            }
-          }
-          
-          toast.error(errorMessage);
-          setLoading(false);
-          throw new Error(errorMessage);
-        }
-      } catch (apiError) {
-        console.error("API isteği hatası:", apiError);
-        toast.error("Talep oluşturulurken bir hata oluştu: " + (apiError instanceof Error ? apiError.message : "Bilinmeyen hata"));
-        setLoading(false);
-        throw apiError;
+        throw new Error(responseData.message || 'Sunucu hatası');
       }
-      
-      // responseData içindeki data objesini kontrol et
+
       if (!responseData.data) {
-        console.warn("API yanıtında data alanı yok:", responseData);
-        toast.error("API yanıtı beklenmeyen formatta. Lütfen tekrar deneyin.");
-        setLoading(false);
+        toast.error("Sunucu yanıtı beklenmeyen formatta. Lütfen tekrar deneyin.");
         return;
       }
       
       const talep = responseData.data;
-      console.log("Talep oluşturuldu:", talep);
       
       // Dosya yüklemesi varsa
       if (uploadedFiles.length > 0) {
         try {
-          console.log(`${uploadedFiles.length} dosya yüklenecek...`);
+          const uploadToast = toast.loading("Dosyalar yükleniyor...");
+          
           await uploadFiles(talep.id, uploadedFiles);
+          
+          toast.dismiss(uploadToast);
+          toast.success("Dosyalar başarıyla yüklendi");
         } catch (fileError) {
           console.error("Dosya yükleme hatası:", fileError);
           toast.error("Talep oluşturuldu ancak dosyalar yüklenirken bir hata oluştu.");
         }
       }
       
-      // Başarılı işlem
       toast.success("Talep başarıyla oluşturuldu!");
       form.reset();
       setSelectedProduct(null);
       setUploadedFiles([]);
       
       // Talepler sayfasına yönlendir
-      setTimeout(() => {
-        router.push("/talepler");
-      }, 1500);
+      router.push("/talepler");
     } catch (error: any) {
       console.error("Talep oluşturulurken hata:", error);
-      toast.error(
-        error.message || 
-        "Talep oluşturulurken bir hata oluştu. Lütfen tekrar deneyin."
-      );
+      toast.error(error.message || "Talep oluşturulurken bir hata oluştu. Lütfen tekrar deneyin.");
     } finally {
       setLoading(false);
     }
@@ -301,7 +245,6 @@ export function TalepForm() {
   const uploadFiles = async (talepId: string, files: File[]) => {
     const formData = new FormData();
     
-    // Her dosyayı formData'ya ekle
     files.forEach((file) => {
       formData.append("dosya", file);
     });
@@ -318,15 +261,18 @@ export function TalepForm() {
             const percentCompleted = Math.round(
               (progressEvent.loaded * 100) / (progressEvent.total || 1)
             );
-            console.log(`Yükleme ilerlemesi: ${percentCompleted}%`);
+            toast.loading(`Dosyalar yükleniyor... ${percentCompleted}%`, {
+              id: "upload-progress"
+            });
           },
-          timeout: 60000, // 60 saniye timeout
+          timeout: 30000, // 30 saniye timeout
         }
       );
       
-      console.log("Dosyalar yüklendi:", response.data);
+      toast.dismiss("upload-progress");
       return response.data;
     } catch (error) {
+      toast.dismiss("upload-progress");
       console.error("Dosya yükleme hatası:", error);
       throw error;
     }
@@ -482,7 +428,11 @@ export function TalepForm() {
               <Calendar
                 mode="single"
                 selected={field.value}
-                onSelect={field.onChange}
+                onSelect={(date) => {
+                  if (date) {
+                    field.onChange(date);
+                  }
+                }}
                 disabled={(date) =>
                   date < new Date() || date > new Date(new Date().setMonth(new Date().getMonth() + 6))
                 }
@@ -522,11 +472,24 @@ export function TalepForm() {
         />
 
         <div className="flex justify-end gap-4">
-          <Button type="button" variant="outline" onClick={() => router.back()}>
+          <Button 
+            type="button" 
+            variant="outline" 
+            onClick={() => router.back()}
+            disabled={loading}
+          >
             İptal
           </Button>
-          <Button type="submit" disabled={loading}>
-            {loading ? "Gönderiliyor..." : "Talep Oluştur"}
+          <Button 
+            type="submit" 
+            disabled={loading}
+          >
+            {loading ? (
+              <div className="flex items-center gap-2">
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                Gönderiliyor...
+              </div>
+            ) : "Talep Oluştur"}
           </Button>
         </div>
       </form>

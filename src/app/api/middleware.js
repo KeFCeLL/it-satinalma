@@ -74,10 +74,23 @@ export function withAuth(handler) {
         // Token'ı doğrula
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         
+        // Kullanıcı ID'sini kontrol et
+        if (!decoded.id) {
+          logError('Token içinde kullanıcı ID bulunamadı');
+          return NextResponse.json(
+            { error: "Yetkilendirme başarısız: Geçersiz kullanıcı bilgisi" },
+            { status: 401 }
+          );
+        }
+        
         // Request nesnesine kullanıcı bilgilerini ekle
         request.user = decoded;
         
-        logInfo('Token doğrulandı ve kullanıcı bilgisi eklendi:', decoded);
+        logInfo('Token doğrulandı ve kullanıcı bilgisi eklendi:', {
+          id: decoded.id,
+          email: decoded.email,
+          rol: decoded.rol
+        });
         
         // Orijinal handler'ı çağır
         return handler(request, params);
