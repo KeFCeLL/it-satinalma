@@ -5,22 +5,27 @@ const CITY = 'Istanbul'; // Varsayılan şehir
 
 export async function GET() {
   if (!API_KEY) {
+    console.error('OpenWeather API key is not configured');
     return NextResponse.json(
-      { error: 'OpenWeather API anahtarı bulunamadı' },
+      { error: 'API anahtarı yapılandırılmamış' },
       { status: 500 }
     );
   }
 
   try {
+    console.log('Fetching weather data for:', CITY);
     const response = await fetch(
-      `https://api.openweathermap.org/data/2.5/weather?q=${CITY}&appid=${API_KEY}&units=metric`
+      `https://api.openweathermap.org/data/2.5/weather?q=${CITY}&appid=${API_KEY}&units=metric&lang=tr`
     );
 
     if (!response.ok) {
-      throw new Error('Weather API request failed');
+      const errorData = await response.json();
+      console.error('OpenWeather API Error:', errorData);
+      throw new Error(`Weather API request failed: ${response.status} ${response.statusText}`);
     }
 
     const data = await response.json();
+    console.log('Weather data received:', data);
 
     // Hava durumu durumlarını Türkçe'ye çevirme
     const getCondition = (weatherId: number) => {
@@ -34,13 +39,14 @@ export async function GET() {
       return 'Bilinmiyor';
     };
 
-    return NextResponse.json({
+    const weatherResponse = {
       temperature: Math.round(data.main.temp),
       condition: getCondition(data.weather[0].id),
-      humidity: data.main.humidity,
-      windSpeed: Math.round(data.wind.speed),
       city: data.name
-    });
+    };
+
+    console.log('Formatted weather response:', weatherResponse);
+    return NextResponse.json(weatherResponse);
   } catch (error) {
     console.error('Weather API Error:', error);
     return NextResponse.json(
