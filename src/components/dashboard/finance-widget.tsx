@@ -27,14 +27,23 @@ export function FinanceWidget() {
         const data = await response.json();
 
         if (!response.ok) {
+          console.error('API Error:', data);
           throw new Error(data.error || 'Döviz kurları alınamadı');
         }
 
         console.log('Received exchange rates:', data);
+        
+        // Tüm oranların geçerli olduğunu kontrol et
+        if (data.USD === 0 || data.EUR === 0 || data.GBP === 0 || data.CAD === 0) {
+          throw new Error('Bazı döviz kurları alınamadı. Lütfen daha sonra tekrar deneyin.');
+        }
+
         setRates(data);
+        setError(null);
       } catch (err) {
         console.error('Error fetching exchange rates:', err);
         setError(err instanceof Error ? err.message : 'Bir hata oluştu');
+        setRates(null);
       } finally {
         setLoading(false);
       }
@@ -52,7 +61,11 @@ export function FinanceWidget() {
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Hata</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
+            <AlertDescription>
+              {error.includes('API limit') ? 
+                'API limit aşımı. Lütfen daha sonra tekrar deneyin.' : 
+                error}
+            </AlertDescription>
           </Alert>
         </CardContent>
       </Card>

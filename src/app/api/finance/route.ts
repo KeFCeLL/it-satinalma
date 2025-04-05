@@ -42,21 +42,36 @@ export async function GET() {
         }
 
         const data = await response.json();
-        console.log(`${currency} rate response:`, data);
+        console.log(`${currency} rate response:`, JSON.stringify(data, null, 2));
 
+        // API limit aşımı kontrolü
+        if (data['Note'] || data['Information']) {
+          const errorMessage = data['Note'] || data['Information'];
+          console.error(`API limit error for ${currency}:`, errorMessage);
+          throw new Error(errorMessage);
+        }
+
+        // Hata mesajı kontrolü
         if (data['Error Message']) {
           console.error(`Alpha Vantage error for ${currency}:`, data['Error Message']);
           throw new Error(data['Error Message']);
         }
 
+        // Yanıt formatı kontrolü
         if (!data['Realtime Currency Exchange Rate']) {
           console.error(`Invalid response format for ${currency}:`, data);
           throw new Error(`Invalid response format for ${currency}`);
         }
 
-        const rate = parseFloat(data['Realtime Currency Exchange Rate']['5. Exchange Rate']);
-        console.log(`${currency} rate:`, rate);
+        const exchangeRate = data['Realtime Currency Exchange Rate'];
+        const rate = parseFloat(exchangeRate['5. Exchange Rate']);
+        
+        if (isNaN(rate)) {
+          console.error(`Invalid rate value for ${currency}:`, exchangeRate['5. Exchange Rate']);
+          throw new Error(`Invalid rate value for ${currency}`);
+        }
 
+        console.log(`${currency} rate:`, rate);
         return {
           currency,
           rate
