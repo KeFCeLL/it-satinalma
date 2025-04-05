@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Cloud, CloudRain, Sun, Loader2 } from 'lucide-react';
+import { Cloud, CloudRain, Sun, CloudLightning, CloudSnow, CloudFog, Loader2 } from 'lucide-react';
 
 interface WeatherData {
   temperature: number;
@@ -18,14 +18,12 @@ export function WeatherWidget() {
   useEffect(() => {
     const fetchWeather = async () => {
       try {
-        // Simüle edilmiş hava durumu verisi
-        const mockWeather = {
-          temperature: Math.floor(Math.random() * (30 - 15) + 15),
-          condition: ['Güneşli', 'Bulutlu', 'Yağmurlu'][Math.floor(Math.random() * 3)],
-          city: 'İstanbul'
-        };
-        
-        setWeather(mockWeather);
+        const response = await fetch('/api/weather');
+        if (!response.ok) {
+          throw new Error('Hava durumu bilgisi alınamadı');
+        }
+        const data = await response.json();
+        setWeather(data);
         setLoading(false);
       } catch (err) {
         setError('Hava durumu bilgisi alınamadı');
@@ -47,6 +45,12 @@ export function WeatherWidget() {
         return <Cloud className="h-6 w-6 text-gray-500" />;
       case 'yağmurlu':
         return <CloudRain className="h-6 w-6 text-blue-500" />;
+      case 'fırtınalı':
+        return <CloudLightning className="h-6 w-6 text-yellow-600" />;
+      case 'karlı':
+        return <CloudSnow className="h-6 w-6 text-blue-200" />;
+      case 'sisli':
+        return <CloudFog className="h-6 w-6 text-gray-400" />;
       default:
         return <Cloud className="h-6 w-6" />;
     }

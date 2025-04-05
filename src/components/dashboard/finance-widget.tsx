@@ -18,14 +18,12 @@ export function FinanceWidget() {
   useEffect(() => {
     const fetchFinance = async () => {
       try {
-        // Simüle edilmiş finans verisi
-        const mockFinance = {
-          totalBudget: 1000000,
-          totalSpent: Math.floor(Math.random() * 800000),
-          percentageChange: Math.floor(Math.random() * 20) - 10 // -10 ile +10 arası
-        };
-        
-        setFinance(mockFinance);
+        const response = await fetch('/api/finance');
+        if (!response.ok) {
+          throw new Error('Finans bilgileri alınamadı');
+        }
+        const data = await response.json();
+        setFinance(data);
         setLoading(false);
       } catch (err) {
         setError('Finans bilgileri alınamadı');
