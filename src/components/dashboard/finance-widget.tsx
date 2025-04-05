@@ -1,8 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { DollarSign, Euro, PoundSterling, Loader2 } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useEffect, useState } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { AlertCircle } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface ExchangeRates {
   USD: number;
@@ -20,45 +22,39 @@ export function FinanceWidget() {
   useEffect(() => {
     const fetchRates = async () => {
       try {
+        console.log('Fetching exchange rates...');
         const response = await fetch('/api/finance');
-        if (!response.ok) {
-          throw new Error('Döviz kurları alınamadı');
-        }
         const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Döviz kurları alınamadı');
+        }
+
+        console.log('Received exchange rates:', data);
         setRates(data);
-        setLoading(false);
       } catch (err) {
-        setError('Döviz kurları alınamadı');
+        console.error('Error fetching exchange rates:', err);
+        setError(err instanceof Error ? err.message : 'Bir hata oluştu');
+      } finally {
         setLoading(false);
       }
     };
 
     fetchRates();
-    // Her 5 dakikada bir güncelle
-    const interval = setInterval(fetchRates, 300000);
+    const interval = setInterval(fetchRates, 300000); // 5 dakikada bir güncelle
     return () => clearInterval(interval);
   }, []);
-
-  if (loading) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm font-medium">Döviz Kurları</CardTitle>
-        </CardHeader>
-        <CardContent className="flex items-center justify-center py-6">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </CardContent>
-      </Card>
-    );
-  }
 
   if (error) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle className="text-sm font-medium">Döviz Kurları</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-red-500">{error}</CardContent>
+        <CardContent className="p-6">
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Hata</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        </CardContent>
       </Card>
     );
   }
@@ -66,44 +62,40 @@ export function FinanceWidget() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-sm font-medium">Döviz Kurları</CardTitle>
+        <CardTitle>Döviz Kurları</CardTitle>
       </CardHeader>
       <CardContent>
-        {rates && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <DollarSign className="h-4 w-4 text-green-500" />
-                <span className="text-sm">USD/TRY</span>
+        {loading ? (
+          <div className="space-y-4">
+            <Skeleton className="h-8 w-3/4" />
+            <Skeleton className="h-4 w-1/2" />
+            <Skeleton className="h-4 w-2/3" />
+          </div>
+        ) : rates ? (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <div className="text-sm text-muted-foreground">USD/TRY</div>
+                <div className="text-lg font-medium">{rates.USD.toFixed(4)}</div>
               </div>
-              <span className="text-sm font-medium">{rates.USD.toFixed(2)}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <Euro className="h-4 w-4 text-blue-500" />
-                <span className="text-sm">EUR/TRY</span>
+              <div className="space-y-1">
+                <div className="text-sm text-muted-foreground">EUR/TRY</div>
+                <div className="text-lg font-medium">{rates.EUR.toFixed(4)}</div>
               </div>
-              <span className="text-sm font-medium">{rates.EUR.toFixed(2)}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <PoundSterling className="h-4 w-4 text-purple-500" />
-                <span className="text-sm">GBP/TRY</span>
+              <div className="space-y-1">
+                <div className="text-sm text-muted-foreground">GBP/TRY</div>
+                <div className="text-lg font-medium">{rates.GBP.toFixed(4)}</div>
               </div>
-              <span className="text-sm font-medium">{rates.GBP.toFixed(2)}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <DollarSign className="h-4 w-4 text-orange-500" />
-                <span className="text-sm">CAD/TRY</span>
+              <div className="space-y-1">
+                <div className="text-sm text-muted-foreground">CAD/TRY</div>
+                <div className="text-lg font-medium">{rates.CAD.toFixed(4)}</div>
               </div>
-              <span className="text-sm font-medium">{rates.CAD.toFixed(2)}</span>
             </div>
-            <div className="mt-2 text-xs text-muted-foreground">
+            <div className="text-xs text-muted-foreground">
               Son güncelleme: {new Date(rates.lastUpdate).toLocaleTimeString('tr-TR')}
             </div>
           </div>
-        )}
+        ) : null}
       </CardContent>
     </Card>
   );

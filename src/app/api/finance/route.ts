@@ -1,47 +1,88 @@
 import { NextResponse } from 'next/server';
 
-const API_KEY = process.env.EXCHANGERATE_API_KEY;
-const BASE_CURRENCY = 'TRY';
+export const runtime = 'edge';
+export const revalidate = 300; // 5 dakikada bir yenile
+
+const API_KEY = process.env.NEXT_PUBLIC_ALPHAVANTAGE_API_KEY;
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'CAD'];
 
 export async function GET() {
+  if (!API_KEY) {
+    console.error('Alpha Vantage API key is not configured');
+    return NextResponse.json(
+      { error: 'API anahtarı yapılandırılmamış' },
+      { status: 500 }
+    );
+  }
+
   try {
     console.log('Fetching exchange rates...');
+    console.log('Using API Key:', API_KEY.substring(0, 5) + '...');
 
-    // Fixer.io API'sini kullanarak döviz kurlarını al
-    const response = await fetch(
-      `https://api.apilayer.com/fixer/latest?base=${BASE_CURRENCY}&symbols=${CURRENCIES.join(',')}`,
-      {
-        headers: {
-          'apikey': API_KEY as string
+    // Her bir döviz kuru için ayrı istek yap
+    const exchangeRates = await Promise.all(
+      CURRENCIES.map(async (currency) => {
+        const url = `https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=${currency}&to_currency=TRY&apikey=${API_KEY}`;
+        console.log(`Fetching rate for ${currency} from:`, url.replace(API_KEY, 'HIDDEN'));
+
+        const response = await fetch(url, {
+          next: {
+            revalidate: 300 // 5 dakika cache
+          }
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`Error fetching ${currency} rate:`, {
+            status: response.status,
+            statusText: response.statusText,
+            body: errorText
+          });
+          throw new Error(`Failed to fetch ${currency} rate: ${response.statusText}`);
         }
-      }
+
+        const data = await response.json();
+        console.log(`${currency} rate response:`, data);
+
+        if (data['Error Message']) {
+          console.error(`Alpha Vantage error for ${currency}:`, data['Error Message']);
+          throw new Error(data['Error Message']);
+        }
+
+        if (!data['Realtime Currency Exchange Rate']) {
+          console.error(`Invalid response format for ${currency}:`, data);
+          throw new Error(`Invalid response format for ${currency}`);
+        }
+
+        const rate = parseFloat(data['Realtime Currency Exchange Rate']['5. Exchange Rate']);
+        console.log(`${currency} rate:`, rate);
+
+        return {
+          currency,
+          rate
+        };
+      })
     );
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error('Exchange Rate API Error:', errorData);
-      throw new Error(`Exchange rate API request failed: ${response.status} ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    console.log('Exchange rate data received:', data);
-
-    // Kurları TL bazlı olarak hesapla (1 TL kaç döviz ediyor)
+    // Sonuçları formatla
     const rates = {
-      USD: 1 / data.rates.USD,
-      EUR: 1 / data.rates.EUR,
-      GBP: 1 / data.rates.GBP,
-      CAD: 1 / data.rates.CAD,
-      lastUpdate: new Date(data.timestamp * 1000).toISOString()
+      USD: exchangeRates.find(r => r.currency === 'USD')?.rate || 0,
+      EUR: exchangeRates.find(r => r.currency === 'EUR')?.rate || 0,
+      GBP: exchangeRates.find(r => r.currency === 'GBP')?.rate || 0,
+      CAD: exchangeRates.find(r => r.currency === 'CAD')?.rate || 0,
+      lastUpdate: new Date().toISOString()
     };
 
-    console.log('Formatted exchange rates:', rates);
-    return NextResponse.json(rates);
+    console.log('Final exchange rates:', rates);
+    return NextResponse.json(rates, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=300'
+      }
+    });
   } catch (error) {
     console.error('Finance API Error:', error);
     return NextResponse.json(
-      { error: 'Döviz kurları alınamadı' },
+      { error: 'Döviz kurları alınamadı: ' + (error instanceof Error ? error.message : 'Bilinmeyen hata') },
       { status: 500 }
     );
   }
