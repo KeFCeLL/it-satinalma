@@ -1,77 +1,47 @@
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+
+const API_KEY = process.env.EXCHANGERATE_API_KEY;
+const BASE_CURRENCY = 'TRY';
+const CURRENCIES = ['USD', 'EUR', 'GBP', 'CAD'];
 
 export async function GET() {
   try {
-    console.log('Fetching finance data...');
-    
-    // Son 30 günlük taleplerin toplam tutarını hesapla
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    console.log('Fetching exchange rates...');
 
-    console.log('Calculating totals for the last 30 days from:', thirtyDaysAgo.toISOString());
-
-    const [currentMonthTotal, previousMonthTotal] = await Promise.all([
-      // Bu ay
-      prisma.urunTalep.aggregate({
-        where: {
-          createdAt: {
-            gte: thirtyDaysAgo
-          },
-          talep: {
-            durum: 'ONAYLANDI'
-          }
-        },
-        _sum: {
-          tutar: true
+    // Fixer.io API'sini kullanarak döviz kurlarını al
+    const response = await fetch(
+      `https://api.apilayer.com/fixer/latest?base=${BASE_CURRENCY}&symbols=${CURRENCIES.join(',')}`,
+      {
+        headers: {
+          'apikey': API_KEY as string
         }
-      }),
-      // Önceki ay
-      prisma.urunTalep.aggregate({
-        where: {
-          createdAt: {
-            lt: thirtyDaysAgo,
-            gte: new Date(thirtyDaysAgo.getTime() - 30 * 24 * 60 * 60 * 1000)
-          },
-          talep: {
-            durum: 'ONAYLANDI'
-          }
-        },
-        _sum: {
-          tutar: true
-        }
-      })
-    ]);
+      }
+    );
 
-    console.log('Database query results:', {
-      currentMonthTotal,
-      previousMonthTotal
-    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Exchange Rate API Error:', errorData);
+      throw new Error(`Exchange rate API request failed: ${response.status} ${response.statusText}`);
+    }
 
-    // Toplam bütçe (sabit değer)
-    const totalBudget = 1000000;
-    
-    // Bu ayki toplam harcama
-    const totalSpent = currentMonthTotal._sum.tutar || 0;
-    
-    // Değişim yüzdesi hesapla
-    const previousTotal = previousMonthTotal._sum.tutar || 0;
-    const percentageChange = previousTotal === 0 
-      ? 0 
-      : Math.round(((totalSpent - previousTotal) / previousTotal) * 100);
+    const data = await response.json();
+    console.log('Exchange rate data received:', data);
 
-    const financeResponse = {
-      totalBudget,
-      totalSpent,
-      percentageChange
+    // Kurları TL bazlı olarak hesapla (1 TL kaç döviz ediyor)
+    const rates = {
+      USD: 1 / data.rates.USD,
+      EUR: 1 / data.rates.EUR,
+      GBP: 1 / data.rates.GBP,
+      CAD: 1 / data.rates.CAD,
+      lastUpdate: new Date(data.timestamp * 1000).toISOString()
     };
 
-    console.log('Formatted finance response:', financeResponse);
-    return NextResponse.json(financeResponse);
+    console.log('Formatted exchange rates:', rates);
+    return NextResponse.json(rates);
   } catch (error) {
     console.error('Finance API Error:', error);
     return NextResponse.json(
-      { error: 'Finans bilgileri alınamadı' },
+      { error: 'Döviz kurları alınamadı' },
       { status: 500 }
     );
   }

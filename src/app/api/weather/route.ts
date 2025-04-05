@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 
+export const runtime = 'edge';
+
 const API_KEY = process.env.OPENWEATHER_API_KEY;
 const CITY = 'Istanbul'; // Varsayılan şehir
 
@@ -15,7 +17,8 @@ export async function GET() {
   try {
     console.log('Fetching weather data for:', CITY);
     const response = await fetch(
-      `https://api.openweathermap.org/data/2.5/weather?q=${CITY}&appid=${API_KEY}&units=metric&lang=tr`
+      `https://api.openweathermap.org/data/2.5/weather?q=${CITY}&appid=${API_KEY}&units=metric&lang=tr`,
+      { cache: 'no-store' }
     );
 
     if (!response.ok) {
