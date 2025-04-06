@@ -3,18 +3,11 @@ import { NextResponse } from 'next/server';
 export const runtime = 'edge';
 export const revalidate = 300; // 5 dakikada bir yenile
 
-const API_KEY = process.env.WEATHERAPI_KEY;
+// Vercel'de environment variable'ı kontrol et, yoksa fallback key kullan
+const API_KEY = process.env.WEATHERAPI_KEY || 'e398ebd102956a9b5942e5dbc8a3269b';
 const CITY = 'Istanbul';
 
 export async function GET() {
-  if (!API_KEY) {
-    console.error('WeatherAPI key is not configured');
-    return NextResponse.json(
-      { error: 'API anahtarı yapılandırılmamış' },
-      { status: 500 }
-    );
-  }
-
   try {
     console.log('Fetching weather data for:', CITY);
     console.log('Using API Key:', API_KEY.substring(0, 5) + '...');
@@ -59,7 +52,7 @@ export async function GET() {
     const data = await response.json();
     console.log('Weather data received:', data);
 
-    if (!data.current || !data.location) {
+    if (!data.current || !data.weather || !data.weather[0]) {
       console.error('Invalid response format:', data);
       throw new Error('Invalid API response format');
     }
@@ -84,7 +77,7 @@ export async function GET() {
   } catch (error) {
     console.error('Weather API Error:', error);
     return NextResponse.json(
-      { error: 'Hava durumu bilgisi alınamadı' },
+      { error: 'Hava durumu bilgisi alınamadı: ' + (error instanceof Error ? error.message : 'Bilinmeyen hata') },
       { status: 500 }
     );
   }

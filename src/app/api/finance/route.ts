@@ -3,19 +3,12 @@ import { NextResponse } from 'next/server';
 export const runtime = 'edge';
 export const revalidate = 300; // 5 dakikada bir yenile
 
-const API_KEY = process.env.EXCHANGERATE_API_KEY;
+// Vercel'de environment variable'ı kontrol et, yoksa fallback key kullan
+const API_KEY = process.env.EXCHANGERATE_API_KEY || '6ba6a2697ddec4176bc5b2ab';
 const BASE_CURRENCY = 'TRY';
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'CAD'];
 
 export async function GET() {
-  if (!API_KEY) {
-    console.error('Exchange Rate API key is not configured');
-    return NextResponse.json(
-      { error: 'API anahtarı yapılandırılmamış' },
-      { status: 500 }
-    );
-  }
-
   try {
     console.log('Fetching exchange rates...');
     console.log('Using API Key:', API_KEY.substring(0, 5) + '...');
