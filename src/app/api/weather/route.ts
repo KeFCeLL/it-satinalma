@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
-export const runtime = 'edge';
+// Edge runtime'ı kaldırıyoruz
+// export const runtime = 'edge';
 export const revalidate = 300; // 5 dakikada bir yenile
 
 // Vercel'de environment variable'ı kontrol et, yoksa fallback key kullan
@@ -9,6 +10,15 @@ const CITY = 'Istanbul';
 
 export async function GET() {
   try {
+    // API key kontrolü
+    if (!API_KEY) {
+      console.error('WEATHERAPI_KEY environment variable is not set');
+      return NextResponse.json(
+        { error: 'API anahtarı yapılandırılmamış' },
+        { status: 500 }
+      );
+    }
+
     console.log('Fetching weather data for:', CITY);
     console.log('Using API Key:', API_KEY.substring(0, 5) + '...');
 
@@ -17,7 +27,8 @@ export async function GET() {
 
     const response = await fetch(url, {
       headers: {
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'User-Agent': 'IT-Satinalma/1.0'
       },
       next: {
         revalidate: 300 // 5 dakika cache
