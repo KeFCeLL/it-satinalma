@@ -67,16 +67,26 @@ export async function GET() {
       throw new Error('Missing required weather data fields');
     }
 
+    // Yanıt formatını kontrol et
     const weatherResponse = {
-      temperature: Math.round(data.current.temp_c),
+      temperature: Math.round(data.current.temp_c || 0),
       condition: data.current.condition?.text || 'Bilinmiyor',
-      city: data.location.name,
+      city: data.location.name || 'Istanbul',
       icon: data.current.condition?.icon || '',
       description: data.current.condition?.text || 'Bilinmiyor',
       humidity: data.current.humidity || 0,
       windSpeed: data.current.wind_kph || 0,
-      feelsLike: Math.round(data.current.feelslike_c || data.current.temp_c)
+      feelsLike: Math.round(data.current.feelslike_c || data.current.temp_c || 0)
     };
+
+    // Yanıt formatını doğrula
+    if (typeof weatherResponse.temperature !== 'number' || 
+        typeof weatherResponse.humidity !== 'number' || 
+        typeof weatherResponse.windSpeed !== 'number' || 
+        typeof weatherResponse.feelsLike !== 'number') {
+      console.error('Invalid weather response format:', weatherResponse);
+      throw new Error('Invalid weather response format');
+    }
 
     console.log('Formatted weather response:', weatherResponse);
     return NextResponse.json(weatherResponse, {
