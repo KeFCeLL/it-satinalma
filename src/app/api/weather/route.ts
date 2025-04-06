@@ -52,7 +52,8 @@ export async function GET() {
     const data = await response.json();
     console.log('Weather data received:', data);
 
-    if (!data.current || !data.weather || !data.weather[0]) {
+    // WeatherAPI.com yanıt formatını kontrol et
+    if (!data.current || !data.location) {
       console.error('Invalid response format:', data);
       throw new Error('Invalid API response format');
     }
