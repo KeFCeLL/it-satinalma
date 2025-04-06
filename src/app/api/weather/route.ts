@@ -50,23 +50,32 @@ export async function GET() {
     }
 
     const data = await response.json();
-    console.log('Weather data received:', data);
+    console.log('Weather data received:', JSON.stringify(data, null, 2));
 
     // WeatherAPI.com yanıt formatını kontrol et
-    if (!data.current || !data.location) {
+    if (!data || typeof data !== 'object') {
       console.error('Invalid response format:', data);
       throw new Error('Invalid API response format');
     }
 
+    if (!data.current || !data.location) {
+      console.error('Missing required fields:', {
+        hasCurrent: !!data.current,
+        hasLocation: !!data.location,
+        data: data
+      });
+      throw new Error('Missing required weather data fields');
+    }
+
     const weatherResponse = {
       temperature: Math.round(data.current.temp_c),
-      condition: data.current.condition.text,
+      condition: data.current.condition?.text || 'Bilinmiyor',
       city: data.location.name,
-      icon: data.current.condition.icon,
-      description: data.current.condition.text,
-      humidity: data.current.humidity,
-      windSpeed: data.current.wind_kph,
-      feelsLike: Math.round(data.current.feelslike_c)
+      icon: data.current.condition?.icon || '',
+      description: data.current.condition?.text || 'Bilinmiyor',
+      humidity: data.current.humidity || 0,
+      windSpeed: data.current.wind_kph || 0,
+      feelsLike: Math.round(data.current.feelslike_c || data.current.temp_c)
     };
 
     console.log('Formatted weather response:', weatherResponse);
