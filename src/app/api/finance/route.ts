@@ -3,12 +3,13 @@ import { NextResponse } from 'next/server';
 export const runtime = 'edge';
 export const revalidate = 300; // 5 dakikada bir yenile
 
-const API_KEY = process.env.NEXT_PUBLIC_ALPHAVANTAGE_API_KEY;
+const API_KEY = process.env.EXCHANGERATE_API_KEY;
+const BASE_CURRENCY = 'TRY';
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'CAD'];
 
 export async function GET() {
   if (!API_KEY) {
-    console.error('Alpha Vantage API key is not configured');
+    console.error('Exchange Rate API key is not configured');
     return NextResponse.json(
       { error: 'API anahtarı yapılandırılmamış' },
       { status: 500 }
@@ -19,76 +20,42 @@ export async function GET() {
     console.log('Fetching exchange rates...');
     console.log('Using API Key:', API_KEY.substring(0, 5) + '...');
 
-    // Her bir döviz kuru için ayrı istek yap
-    const exchangeRates = await Promise.all(
-      CURRENCIES.map(async (currency) => {
-        const url = `https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=${currency}&to_currency=TRY&apikey=${API_KEY}`;
-        console.log(`Fetching rate for ${currency} from:`, url.replace(API_KEY, 'HIDDEN'));
+    const url = `https://v6.exchangerate-api.com/v6/${API_KEY}/latest/${BASE_CURRENCY}`;
+    console.log('Request URL:', url.replace(API_KEY, 'HIDDEN'));
 
-        const response = await fetch(url, {
-          next: {
-            revalidate: 300 // 5 dakika cache
-          }
-        });
+    const response = await fetch(url, {
+      next: {
+        revalidate: 300 // 5 dakika cache
+      }
+    });
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`Error fetching ${currency} rate:`, {
-            status: response.status,
-            statusText: response.statusText,
-            body: errorText
-          });
-          throw new Error(`Failed to fetch ${currency} rate: ${response.statusText}`);
-        }
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Exchange Rate API Error:', {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorText
+      });
+      throw new Error(`Failed to fetch exchange rates: ${response.statusText}`);
+    }
 
-        const data = await response.json();
-        console.log(`${currency} rate response:`, JSON.stringify(data, null, 2));
+    const data = await response.json();
+    console.log('Exchange rate data:', data);
 
-        // API limit aşımı kontrolü
-        if (data['Note'] || data['Information']) {
-          const errorMessage = data['Note'] || data['Information'];
-          console.error(`API limit error for ${currency}:`, errorMessage);
-          throw new Error(errorMessage);
-        }
+    if (data.result !== 'success') {
+      console.error('Exchange Rate API Error:', data);
+      throw new Error(data['error-type'] || 'Invalid API response');
+    }
 
-        // Hata mesajı kontrolü
-        if (data['Error Message']) {
-          console.error(`Alpha Vantage error for ${currency}:`, data['Error Message']);
-          throw new Error(data['Error Message']);
-        }
-
-        // Yanıt formatı kontrolü
-        if (!data['Realtime Currency Exchange Rate']) {
-          console.error(`Invalid response format for ${currency}:`, data);
-          throw new Error(`Invalid response format for ${currency}`);
-        }
-
-        const exchangeRate = data['Realtime Currency Exchange Rate'];
-        const rate = parseFloat(exchangeRate['5. Exchange Rate']);
-        
-        if (isNaN(rate)) {
-          console.error(`Invalid rate value for ${currency}:`, exchangeRate['5. Exchange Rate']);
-          throw new Error(`Invalid rate value for ${currency}`);
-        }
-
-        console.log(`${currency} rate:`, rate);
-        return {
-          currency,
-          rate
-        };
-      })
-    );
-
-    // Sonuçları formatla
     const rates = {
-      USD: exchangeRates.find(r => r.currency === 'USD')?.rate || 0,
-      EUR: exchangeRates.find(r => r.currency === 'EUR')?.rate || 0,
-      GBP: exchangeRates.find(r => r.currency === 'GBP')?.rate || 0,
-      CAD: exchangeRates.find(r => r.currency === 'CAD')?.rate || 0,
+      USD: 1 / data.conversion_rates.USD,
+      EUR: 1 / data.conversion_rates.EUR,
+      GBP: 1 / data.conversion_rates.GBP,
+      CAD: 1 / data.conversion_rates.CAD,
       lastUpdate: new Date().toISOString()
     };
 
-    console.log('Final exchange rates:', rates);
+    console.log('Formatted exchange rates:', rates);
     return NextResponse.json(rates, {
       headers: {
         'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=300'
