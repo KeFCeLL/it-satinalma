@@ -5,14 +5,14 @@ import { NextResponse } from 'next/server';
 export const revalidate = 300; // 5 dakikada bir yenile
 
 // Vercel'de environment variable'ı kontrol et, yoksa fallback key kullan
-const API_KEY = process.env.WEATHERAPI_KEY || 'e398ebd102956a9b5942e5dbc8a3269b';
+const API_KEY = process.env.NEXT_PUBLIC_WEATHERAPI_KEY || 'e398ebd102956a9b5942e5dbc8a3269b';
 const CITY = 'Istanbul';
 
 export async function GET() {
   try {
     // API key kontrolü
     if (!API_KEY) {
-      console.error('WEATHERAPI_KEY environment variable is not set');
+      console.error('NEXT_PUBLIC_WEATHERAPI_KEY environment variable is not set');
       return NextResponse.json(
         { error: 'API anahtarı yapılandırılmamış' },
         { status: 500 }
