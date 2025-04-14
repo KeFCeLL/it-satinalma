@@ -88,7 +88,7 @@ async function getKullanicilarHandler(request) {
     const { searchParams } = new URL(request.url);
     const hepsi = searchParams.get('hepsi') === 'true';
     const sayfa = parseInt(searchParams.get('sayfa') || '1');
-    const sayfaBasi = parseInt(searchParams.get('sayfaBasi') || '10');
+    const sayfaBasi = parseInt(searchParams.get('sayfaBasi') || '50'); // Varsayılan sayfa boyutunu 50'ye çıkar
     const arama = searchParams.get('arama') || '';
     const departmanId = searchParams.get('departmanId');
     const role = searchParams.get('role');

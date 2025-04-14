@@ -101,6 +101,13 @@ export function KullaniciListe() {
   const [userToEdit, setUserToEdit] = useState<Kullanici | null>(null);
   const queryClient = { invalidateQueries: (config: any) => {} }; // Geçici olarak mock ettik
   const [kullanicilar, setKullanicilar] = useState<Kullanici[]>([]);
+  const [error, setError] = useState(null);
+  const [filtreler, setFiltreler] = useState({
+    arama: '',
+    departmanId: '',
+    role: '',
+    status: ''
+  });
 
   // LocalStorage'dan kullanıcıları al
   const getLocalStorageUsers = () => {
@@ -118,48 +125,26 @@ export function KullaniciListe() {
   };
 
   // Kullanıcıları yükle
-  const fetchUsers = async () => {
-    setLoading(true);
+  const fetchKullanicilar = async () => {
     try {
-      // Önce localStorage'dan yükle
-      getLocalStorageUsers();
-      
-      // Mock API modunu kapat
-      localStorage.setItem('useMockApi', 'false');
-      
-      // API'den veri getir
-      console.log('🔍 Kullanıcılar API isteği başlatılıyor...');
-      const response = await fetch('/api/kullanicilar', {
-        headers: {
-          'Cache-Control': 'no-store, no-cache, must-revalidate',
-          'Pragma': 'no-cache',
-          'X-Force-No-Mock': 'true' // Mock veriyi engelle
-        },
-        credentials: 'include'
+      setLoading(true);
+      const params = new URLSearchParams({
+        hepsi: 'true', // Tüm kullanıcıları getir
+        ...filtreler
       });
       
-      console.log('📊 API yanıtı:', response.status, response.statusText);
-      
-      if (!response.ok) {
-        console.warn('⚠️ API hatası, localStorage verilerini kullanmaya devam ediyoruz');
-        return;
-      }
-      
+      const response = await fetch(`/api/kullanicilar?${params}`);
       const data = await response.json();
-      console.log('📋 Alınan kullanıcı sayısı:', data.kullanicilar?.length || 0);
       
-      // API verisi var mı kontrol et
-      if (data.kullanicilar && Array.isArray(data.kullanicilar)) {
-        // Kullanıcıları state'e kaydet
-        setKullanicilar(data.kullanicilar);
-        
-        // LocalStorage'a da kaydet
-        localStorage.setItem('it_satinalma_users', JSON.stringify(data.kullanicilar));
-        console.log('✅ Kullanıcılar localStorage\'a kaydedildi');
+      if (!data.success) {
+        throw new Error(data.message || 'Kullanıcılar getirilemedi');
       }
-    } catch (error) {
-      console.error('❌ Kullanıcıları getirme hatası:', error);
-      toast.error("Kullanıcılar yüklenirken hata oluştu");
+      
+      setKullanicilar(data.kullanicilar);
+      setError(null);
+    } catch (err) {
+      setError(err.message);
+      console.error('Kullanıcılar getirilirken hata:', err);
     } finally {
       setLoading(false);
     }
@@ -167,8 +152,8 @@ export function KullaniciListe() {
 
   // Component mount olduğunda kullanıcıları getir
   useEffect(() => {
-    fetchUsers();
-  }, []);
+    fetchKullanicilar();
+  }, [filtreler]);
 
   // Filtrelenmiş kullanıcılar
   const filteredKullanicilar = kullanicilar.filter((kullanici: Kullanici) => {
@@ -190,7 +175,7 @@ export function KullaniciListe() {
 
   // Düzenleme başarılı olduğunda
   const handleEditSuccess = () => {
-    fetchUsers(); // Kullanıcı listesini yenile
+    fetchKullanicilar(); // Kullanıcı listesini yenile
     handleEditDialogClose();
   };
 
